@@ -1,36 +1,51 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Packscan
 
-## Getting Started
+Unified parcel scanning for stores acting as pickup/drop-off points for **DHL, PostNord, PostNL, and FedEx** — one device, one app, all carriers.
 
-First, run the development server:
+## What it does
+
+- **Three workflows**, picked per scan: inbound customer pickup (arrive → SMS/email notify → picked up), plain inventory logging, and outbound carrier handoff (pending → handed off).
+- **Carrier auto-detection** from tracking-number format (UPU S10 checksums, carrier prefix rules) with confidence ranking; manual override is always one tap away. Ambiguous formats (e.g. the `3S` prefix shared by PostNL and DHL Parcel Benelux) surface all candidates.
+- **Three scan inputs on one screen**: phone/tablet camera (ZXing), USB/Bluetooth keyboard-wedge scanners (burst-timing discrimination so human typing never misfires), and manual entry.
+- **Multi-store** with ADMIN/CLERK roles. Clerks are hard-scoped to their store server-side; admins manage stores/users and see a cross-store overview.
+- **Full audit trail**: every scan/status action is an append-only `ScanEvent` with actor and input method.
+- Notifications and carrier tracking APIs are **stubbed behind interfaces** (`src/lib/notifications`, `CarrierProvider.lookupTrackingDetails`) — swap in Twilio/Resend/carrier credentials without restructuring.
+
+## Stack
+
+Next.js 15 (App Router, Server Actions) · TypeScript · Prisma 6 + Postgres · Auth.js v5 (JWT, credentials) · Tailwind 4 + shadcn/ui · ZXing.
+
+## Setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env   # then fill in:
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- `DATABASE_URL` — Postgres connection string.
+  - Hosted (Neon/Supabase): use the **direct/session-pooler** string, not a transaction pooler, so migrations work. Note: Supabase's `db.*.supabase.co` host is IPv6-only; on IPv4-only networks use the session pooler (`aws-0-<region>.pooler.supabase.com:5432`, user `postgres.<project-ref>`).
+  - Local: `docker compose up -d` starts Postgres 16 matching the example URL.
+- `AUTH_SECRET` — `openssl rand -base64 32`
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npx prisma migrate deploy   # apply migrations (idempotent)
+npx prisma db seed          # demo store + admin/clerk logins (printed to console)
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Log in with the seeded credentials from the seed output. Camera scanning requires a secure context: `localhost` works as-is; for a phone on your LAN use `next dev --experimental-https`.
 
-## Learn More
+## Verification scripts
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm run test:detect   # carrier detection rules (offline, 17 checks)
+npm run test:scan     # scan workflows against the DB (13 checks, cleans up after itself)
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Architecture notes
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `src/lib/status.ts` — the status state machine; both scanning and detail-page buttons go through it.
+- `src/lib/packages.ts#registerScan` — single entry point for every scan: first scan creates, rescan advances (pickup collection, handoff completion), terminal states reject.
+- `src/lib/carriers/` — pure detection rules per carrier; `detectCarrierCandidates()` runs client-side.
+- **Security boundary**: clerk-level Server Actions never accept a `storeId` from the client — it always comes from the session (`src/lib/session.ts`).
+- Production build: stop the dev server first (`next build` and `next dev` share `.next`).

@@ -6,7 +6,9 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:detect": "tsx scripts/test-detect.ts",
+    "test:scan": "tsx --env-file=.env scripts/test-scan-logic.ts"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",

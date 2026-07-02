@@ -6,7 +6,7 @@ import { NEXT_STATUS, STATUS_LABELS, canCancel } from "@/lib/status";
 import { advancePackageAction, cancelPackageAction } from "@/actions/packages";
 import { PackageStatusBadge } from "@/components/packages/PackageStatusBadge";
 import { CARRIER_LABELS } from "@/lib/carriers";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 
@@ -96,14 +96,14 @@ export default async function PackageDetailPage({
         <div className="flex flex-wrap gap-2">
           {next && advanceLabel && (
             <form action={advancePackageAction.bind(null, pkg.id)}>
-              <Button type="submit">{advanceLabel}</Button>
+              <SubmitButton pendingText="Updating…">{advanceLabel}</SubmitButton>
             </form>
           )}
           {canCancel(pkg.status) && (
             <form action={cancelPackageAction.bind(null, pkg.id)}>
-              <Button type="submit" variant="destructive">
+              <SubmitButton variant="destructive" pendingText="Cancelling…">
                 Cancel package
-              </Button>
+              </SubmitButton>
             </form>
           )}
         </div>
