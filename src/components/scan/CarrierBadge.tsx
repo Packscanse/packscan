@@ -1,6 +1,6 @@
 "use client";
 
-import type { CarrierCode, DetectionResult } from "@/lib/carriers";
+import { CARRIER_LABELS, type CarrierCode, type DetectionResult } from "@/lib/carriers";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -9,14 +9,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-export const CARRIER_LABELS: Record<CarrierCode, string> = {
-  DHL: "DHL",
-  POSTNORD: "PostNord",
-  POSTNL: "PostNL",
-  FEDEX: "FedEx",
-  UNKNOWN: "Unknown / other",
-};
 
 const ALL_CARRIERS: CarrierCode[] = ["DHL", "POSTNORD", "POSTNL", "FEDEX", "UNKNOWN"];
 

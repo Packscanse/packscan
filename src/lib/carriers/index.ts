@@ -13,4 +13,5 @@ export const CARRIER_PROVIDERS: CarrierProvider[] = [
 ];
 
 export * from "./types";
+export { CARRIER_LABELS } from "./labels";
 export { detectCarrier, detectCarrierCandidates, normalizeTrackingNumber } from "./detect";
