@@ -1,0 +1,24 @@
+import { z } from "zod";
+
+export const CreateStoreSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  code: z
+    .string()
+    .trim()
+    .min(2)
+    .max(16)
+    .regex(/^[A-Za-z0-9-]+$/, "Letters, digits and dashes only")
+    .transform((v) => v.toUpperCase()),
+  address: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().trim().max(200).optional()
+  ),
+});
+
+export const CreateUserSchema = z.object({
+  email: z.email().transform((v) => v.toLowerCase()),
+  name: z.string().trim().min(2).max(120),
+  password: z.string().min(8).max(128),
+  role: z.enum(["ADMIN", "CLERK"]),
+  storeId: z.string().min(1),
+});

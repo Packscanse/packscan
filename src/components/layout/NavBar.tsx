@@ -3,6 +3,7 @@ import type { Session } from "next-auth";
 import { logoutAction } from "@/actions/auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { RoleGate } from "./RoleGate";
 
 export function NavBar({
   session,
@@ -26,11 +27,11 @@ export function NavBar({
           <Button asChild variant="ghost" size="sm">
             <Link href="/packages">Packages</Link>
           </Button>
-          {isAdmin && (
+          <RoleGate role="ADMIN">
             <Button asChild variant="ghost" size="sm">
               <Link href="/admin">Admin</Link>
             </Button>
-          )}
+          </RoleGate>
         </nav>
         <div className="ml-auto flex items-center gap-3">
           <div className="hidden items-center gap-2 sm:flex">
