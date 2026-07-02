@@ -1,0 +1,153 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Enums ----------
+
+enum Role {
+  ADMIN
+  CLERK
+}
+
+enum Carrier {
+  DHL
+  POSTNORD
+  POSTNL
+  FEDEX
+  UNKNOWN
+}
+
+enum Direction {
+  INBOUND
+  OUTBOUND
+}
+
+// Superset of statuses across all flows. Which values/transitions are legal
+// per direction+flow is enforced in src/lib/status.ts, not at the DB level.
+enum PackageStatus {
+  LOGGED
+  AWAITING_PICKUP
+  PICKED_UP
+  PENDING_HANDOFF
+  HANDED_OFF
+  CANCELLED
+}
+
+enum ScanInputMethod {
+  CAMERA
+  HARDWARE_SCANNER
+  MANUAL_ENTRY
+  STATUS_ACTION
+}
+
+enum NotificationChannel {
+  SMS
+  EMAIL
+}
+
+enum NotificationStatus {
+  WOULD_SEND
+  SENT
+  FAILED
+}
+
+enum NotificationTrigger {
+  AWAITING_PICKUP
+  PICKED_UP
+}
+
+// ---------- Models ----------
+
+model Store {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users      User[]
+  packages   Package[]
+  scanEvents ScanEvent[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         Role     @default(CLERK)
+  storeId      String
+  store        Store    @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  scanEvents ScanEvent[]
+
+  @@index([storeId])
+}
+
+model Package {
+  id             String        @id @default(cuid())
+  trackingNumber String
+  carrier        Carrier
+  carrierManual  Boolean       @default(false)
+  direction      Direction
+  status         PackageStatus
+  storeId        String
+  store          Store         @relation(fields: [storeId], references: [id], onDelete: Restrict)
+
+  customerName  String?
+  customerPhone String?
+  customerEmail String?
+  notes         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  scanEvents    ScanEvent[]
+  notifications Notification[]
+
+  @@unique([storeId, trackingNumber, direction])
+  @@index([storeId, status])
+  @@index([trackingNumber])
+}
+
+// Append-only audit log; Package.status is the current-state cache.
+model ScanEvent {
+  id        String  @id @default(cuid())
+  packageId String
+  package   Package @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  storeId   String
+  store     Store   @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  fromStatus  PackageStatus?
+  toStatus    PackageStatus
+  inputMethod ScanInputMethod
+  scannedAt   DateTime        @default(now())
+
+  @@index([packageId])
+  @@index([storeId, scannedAt])
+}
+
+model Notification {
+  id        String              @id @default(cuid())
+  packageId String
+  package   Package             @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  trigger   NotificationTrigger
+  channel   NotificationChannel
+  recipient String
+  status    NotificationStatus
+  message   String
+  createdAt DateTime            @default(now())
+
+  @@index([packageId])
+}
