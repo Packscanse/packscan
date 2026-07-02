@@ -3,6 +3,12 @@ import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
+// Dev-only credentials below — never let this run against production data.
+if (process.env.NODE_ENV === "production" && process.env.ALLOW_SEED !== "true") {
+  console.error("Refusing to seed in production. Set ALLOW_SEED=true to override.");
+  process.exit(1);
+}
+
 const ADMIN_EMAIL = "admin@packscan.local";
 const CLERK_EMAIL = "clerk@packscan.local";
 const ADMIN_PASSWORD = "admin-dev-password";

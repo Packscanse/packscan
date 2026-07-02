@@ -1,3 +1,4 @@
+import { getRequiredAdminSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { CreateStoreForm } from "@/components/admin/CreateStoreForm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +12,7 @@ import {
 } from "@/components/ui/table";
 
 export default async function AdminStoresPage() {
+  await getRequiredAdminSession();
   const stores = await prisma.store.findMany({
     orderBy: { name: "asc" },
     include: { _count: { select: { users: true, packages: true } } },

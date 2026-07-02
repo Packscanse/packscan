@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { format } from "date-fns";
+import { getRequiredAdminSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { STATUS_LABELS } from "@/lib/status";
 import {
@@ -13,6 +14,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function AdminOverviewPage() {
+  await getRequiredAdminSession();
   const [stores, statusCounts, recentEvents] = await Promise.all([
     prisma.store.findMany({
       orderBy: { name: "asc" },

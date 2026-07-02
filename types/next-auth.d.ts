@@ -23,5 +23,7 @@ declare module "next-auth/jwt" {
   interface JWT {
     role: Role;
     storeId: string;
+    /** Last time the account was re-verified against the DB (ms epoch). */
+    checkedAt?: number;
   }
 }

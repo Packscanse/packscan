@@ -1,3 +1,4 @@
+import { getRequiredAdminSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { CreateUserForm } from "@/components/admin/CreateUserForm";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +13,7 @@ import {
 } from "@/components/ui/table";
 
 export default async function AdminUsersPage() {
+  await getRequiredAdminSession();
   const [users, stores] = await Promise.all([
     prisma.user.findMany({
       orderBy: { createdAt: "asc" },
