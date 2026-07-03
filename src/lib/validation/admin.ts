@@ -15,6 +15,11 @@ export const CreateStoreSchema = z.object({
   ),
 });
 
+export const UpdateStoreIdleSchema = z.object({
+  storeId: z.string().min(1),
+  sessionIdleMinutes: z.coerce.number().int().min(1).max(10),
+});
+
 export const CreateUserSchema = z.object({
   email: z.email().transform((v) => v.toLowerCase()),
   name: z.string().trim().min(2).max(120),

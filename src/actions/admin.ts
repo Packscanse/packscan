@@ -5,7 +5,11 @@ import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { getRequiredSession } from "@/lib/session";
-import { CreateStoreSchema, CreateUserSchema } from "@/lib/validation/admin";
+import {
+  CreateStoreSchema,
+  CreateUserSchema,
+  UpdateStoreIdleSchema,
+} from "@/lib/validation/admin";
 
 export type AdminFormState = { error?: string; success?: string };
 
@@ -36,6 +40,21 @@ export async function createStoreAction(
     }
     throw e;
   }
+}
+
+/** Per-store inactivity timeout (1-10 min); takes effect on staff sessions within ~5 min via the JWT recheck. */
+export async function updateStoreIdleAction(formData: FormData): Promise<void> {
+  const forbidden = await requireAdmin();
+  if (forbidden) return;
+
+  const parsed = UpdateStoreIdleSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return;
+
+  await prisma.store.update({
+    where: { id: parsed.data.storeId },
+    data: { sessionIdleMinutes: parsed.data.sessionIdleMinutes },
+  });
+  revalidatePath("/admin/stores");
 }
 
 export async function createUserAction(

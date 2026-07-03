@@ -68,6 +68,8 @@ model Store {
   name      String
   code      String   @unique
   address   String?
+  // Staff auto-logout after this many minutes of inactivity (1-10).
+  sessionIdleMinutes Int @default(10)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

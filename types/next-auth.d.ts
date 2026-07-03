@@ -16,6 +16,8 @@ declare module "next-auth" {
   interface User {
     role: Role;
     storeId: string;
+    /** Store's inactivity timeout, carried into the JWT at sign-in. */
+    idleMinutes: number;
   }
 }
 
@@ -25,5 +27,9 @@ declare module "next-auth/jwt" {
     storeId: string;
     /** Last time the account was re-verified against the DB (ms epoch). */
     checkedAt?: number;
+    /** Store-configured inactivity timeout in minutes (1-10). */
+    idleMinutes?: number;
+    /** Last request timestamp; rolls forward on activity (ms epoch). */
+    lastActivity?: number;
   }
 }

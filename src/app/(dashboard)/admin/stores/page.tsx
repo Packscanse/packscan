@@ -1,6 +1,8 @@
 import { getRequiredAdminSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { updateStoreIdleAction } from "@/actions/admin";
 import { CreateStoreForm } from "@/components/admin/CreateStoreForm";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -32,6 +34,7 @@ export default async function AdminStoresPage() {
                 <TableHead>Address</TableHead>
                 <TableHead>Staff</TableHead>
                 <TableHead>Packages</TableHead>
+                <TableHead>Idle logout</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -42,6 +45,27 @@ export default async function AdminStoresPage() {
                   <TableCell>{store.address ?? "—"}</TableCell>
                   <TableCell>{store._count.users}</TableCell>
                   <TableCell>{store._count.packages}</TableCell>
+                  <TableCell>
+                    <form action={updateStoreIdleAction} className="flex items-center gap-2">
+                      <input type="hidden" name="storeId" value={store.id} />
+                      <select
+                        name="sessionIdleMinutes"
+                        // Remount when the saved value changes so the RSC
+                        // refresh isn't masked by stale uncontrolled state.
+                        key={store.sessionIdleMinutes}
+                        defaultValue={store.sessionIdleMinutes}
+                        aria-label={`Inactivity logout for ${store.name}`}
+                        className="h-8 rounded-md border border-input bg-transparent px-2 text-sm"
+                      >
+                        {Array.from({ length: 10 }, (_, i) => i + 1).map((min) => (
+                          <option key={min} value={min}>
+                            {min} min
+                          </option>
+                        ))}
+                      </select>
+                      <SubmitButton pendingText="Saving…">Save</SubmitButton>
+                    </form>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

@@ -2,12 +2,13 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { authConfig } from "@/lib/auth-config";
+import { applyIdleTimeout, authConfig, DEFAULT_IDLE_MINUTES } from "@/lib/auth-config";
 import { LoginSchema } from "@/lib/validation/auth";
 import { clearFailures, isRateLimited, recordFailure } from "@/lib/rate-limit";
 
 // How stale a JWT's user snapshot may get before we re-check the DB.
-// Bounds how long a deactivated account (or outdated role) stays usable.
+// Bounds how long a deactivated account (or outdated role/idle-timeout
+// setting) stays usable.
 const SESSION_RECHECK_MS = 5 * 60_000;
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -22,7 +23,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         if (isRateLimited(email)) return null;
 
-        const user = await prisma.user.findUnique({ where: { email } });
+        const user = await prisma.user.findUnique({
+          where: { email },
+          include: { store: { select: { sessionIdleMinutes: true } } },
+        });
         if (!user || !user.active) {
           recordFailure(email);
           return null;
@@ -39,36 +43,48 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: user.name,
           role: user.role,
           storeId: user.storeId,
+          idleMinutes: user.store?.sessionIdleMinutes ?? DEFAULT_IDLE_MINUTES,
         };
       },
     }),
   ],
   callbacks: {
     ...authConfig.callbacks,
-    // Node-runtime override of the edge-safe jwt callback: periodically
-    // re-checks the account so deactivation revokes access within
-    // SESSION_RECHECK_MS and role/store changes propagate without re-login.
-    // Middleware keeps using the DB-free base callback — it only gates
-    // "has a session", never role — so the edge split stays intact.
+    // Node-runtime override of the edge-safe jwt callback: same idle-timeout
+    // enforcement, plus a periodic DB re-check so deactivation revokes access
+    // within SESSION_RECHECK_MS and role/store/idle-setting changes propagate
+    // without re-login. Middleware keeps using the DB-free base callback.
     async jwt({ token, user }) {
       if (user) {
         token.role = user.role;
         token.storeId = user.storeId;
+        token.idleMinutes = user.idleMinutes;
+        token.lastActivity = Date.now();
         token.checkedAt = Date.now();
         return token;
       }
-      const checkedAt = typeof token.checkedAt === "number" ? token.checkedAt : 0;
-      if (token.sub && Date.now() - checkedAt > SESSION_RECHECK_MS) {
+
+      const alive = applyIdleTimeout(token);
+      if (!alive) return null;
+
+      const checkedAt = typeof alive.checkedAt === "number" ? alive.checkedAt : 0;
+      if (alive.sub && Date.now() - checkedAt > SESSION_RECHECK_MS) {
         const dbUser = await prisma.user.findUnique({
-          where: { id: token.sub },
-          select: { active: true, role: true, storeId: true },
+          where: { id: alive.sub },
+          select: {
+            active: true,
+            role: true,
+            storeId: true,
+            store: { select: { sessionIdleMinutes: true } },
+          },
         });
         if (!dbUser?.active) return null; // invalidates the session
-        token.role = dbUser.role;
-        token.storeId = dbUser.storeId;
-        token.checkedAt = Date.now();
+        alive.role = dbUser.role;
+        alive.storeId = dbUser.storeId;
+        alive.idleMinutes = dbUser.store?.sessionIdleMinutes ?? DEFAULT_IDLE_MINUTES;
+        alive.checkedAt = Date.now();
       }
-      return token;
+      return alive;
     },
   },
 });
