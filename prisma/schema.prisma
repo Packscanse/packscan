@@ -61,6 +61,13 @@ enum NotificationTrigger {
   PICKED_UP
 }
 
+enum IdType {
+  PASSPORT
+  DRIVERS_LICENSE
+  NATIONAL_ID
+  OTHER
+}
+
 // ---------- Models ----------
 
 model Store {
@@ -122,10 +129,12 @@ model Package {
 }
 
 // Append-only audit log; Package.status is the current-state cache.
+// Restrict (not Cascade) from Package: scan history must outlive any attempt
+// to delete a package — audit rows go only if explicitly deleted first.
 model ScanEvent {
   id        String  @id @default(cuid())
   packageId String
-  package   Package @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  package   Package @relation(fields: [packageId], references: [id], onDelete: Restrict)
   storeId   String
   store     Store   @relation(fields: [storeId], references: [id], onDelete: Restrict)
   userId    String
@@ -135,9 +144,30 @@ model ScanEvent {
   toStatus    PackageStatus
   inputMethod ScanInputMethod
   scannedAt   DateTime        @default(now())
+  // Free-text context for the transition — e.g. the required cancel reason.
+  note        String?
+
+  verification HandoverVerification?
 
   @@index([packageId])
   @@index([storeId, scannedAt])
+}
+
+// Proof of handover recorded on the PICKED_UP transition: what the clerk
+// verified, per the carrier's pickup policy. One per scan event.
+model HandoverVerification {
+  id          String    @id @default(cuid())
+  scanEventId String    @unique
+  scanEvent   ScanEvent @relation(fields: [scanEventId], references: [id], onDelete: Cascade)
+  // The QR/pickup code the customer presented from the carrier's own app,
+  // captured by scan (or typed). Audit evidence in v1; validated against the
+  // carrier's API once credentials exist (CarrierProvider seam).
+  presentedCode String?
+  idChecked     Boolean @default(false)
+  idType        IdType?
+  // Set when someone other than the addressee collects (proxy pickup).
+  collectorName String?
+  createdAt     DateTime @default(now())
 }
 
 model Notification {

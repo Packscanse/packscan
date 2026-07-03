@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getRequiredSession } from "@/lib/session";
-import { registerScan } from "@/lib/packages";
+import { registerScan, type HandoverContext } from "@/lib/packages";
 import { ScanInputSchema } from "@/lib/validation/scan";
 import type { PackageStatus } from "@prisma/client";
 
@@ -17,7 +17,9 @@ export type ProcessScanResult =
       status: PackageStatus;
       fromStatus?: PackageStatus;
     }
-  | { ok: false; error: string };
+  // Pickup completion needs the handover step: resubmit with `verification`.
+  | { ok: false; code: "VERIFICATION_REQUIRED"; error: string; handover: HandoverContext }
+  | { ok: false; code?: undefined; error: string };
 
 export async function processScan(input: unknown): Promise<ProcessScanResult> {
   const session = await getRequiredSession();
@@ -33,7 +35,17 @@ export async function processScan(input: unknown): Promise<ProcessScanResult> {
     userId: session.user.id,
   });
 
-  if (!outcome.ok) return { ok: false, error: outcome.error };
+  if (!outcome.ok) {
+    if (outcome.code === "VERIFICATION_REQUIRED") {
+      return {
+        ok: false,
+        code: "VERIFICATION_REQUIRED",
+        error: outcome.error,
+        handover: outcome.handover,
+      };
+    }
+    return { ok: false, error: outcome.error };
+  }
 
   revalidatePath("/packages");
   return {

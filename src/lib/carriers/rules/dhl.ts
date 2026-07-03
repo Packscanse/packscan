@@ -12,6 +12,9 @@ const PARCEL_BENELUX_3S = /^3S[A-Z0-9]{7,13}$/;
 export const dhlProvider: CarrierProvider = {
   code: "DHL",
 
+  // DHL ServicePoint: the pickup code is the proof; ID is recorded when shown.
+  pickupPolicy: { code: "required", idCheck: "accepted", proxyAllowed: true },
+
   detect(trackingNumber) {
     if (PARCEL_PREFIX.test(trackingNumber)) {
       return { carrier: "DHL", confidence: "high", matchedRule: "dhl-parcel-prefix" };

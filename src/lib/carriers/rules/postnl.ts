@@ -8,6 +8,10 @@ const DOMESTIC_PATTERN = /^[23]S[A-Z0-9]{7,13}$/;
 export const postnlProvider: CarrierProvider = {
   code: "POSTNL",
 
+  // PostNL: ID check against the addressee is the primary proof; the
+  // notification code is verified when the customer presents one.
+  pickupPolicy: { code: "accepted", idCheck: "required", proxyAllowed: true },
+
   detect(trackingNumber) {
     if (s10CountryCode(trackingNumber) === "NL") {
       if (isValidS10(trackingNumber)) {

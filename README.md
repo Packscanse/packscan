@@ -4,7 +4,8 @@ Unified parcel scanning for stores acting as pickup/drop-off points for **DHL, P
 
 ## What it does
 
-- **Three workflows**, picked per scan: inbound customer pickup (arrive → SMS/email notify → picked up), plain inventory logging, and outbound carrier handoff (pending → handed off).
+- **Three workflows**, picked per scan: inbound customer pickup (arrive → SMS/email notify → verified handover), plain inventory logging, and outbound carrier handoff (pending → handed off).
+- **Carrier-policy pickup verification**: completing a pickup is gated on what each carrier mandates at handover — pickup code and/or photo-ID check, proxy-pickup rules (`pickupPolicy` per carrier rule module). Store-only by design: customers authenticate with the **carrier's own app** — the clerk scans the QR/code off their phone screen (hardware scanner, camera, or typed) and the proof (captured code, ID type, collector) is persisted on the audit event. Cancelling requires a reason.
 - **Carrier auto-detection** from tracking-number format (UPU S10 checksums, carrier prefix rules) with confidence ranking; manual override is always one tap away. Ambiguous formats (e.g. the `3S` prefix shared by PostNL and DHL Parcel Benelux) surface all candidates.
 - **Three scan inputs on one screen**: phone/tablet camera (ZXing), USB/Bluetooth keyboard-wedge scanners (burst-timing discrimination so human typing never misfires), and manual entry.
 - **Multi-store** with ADMIN/CLERK roles. Clerks are hard-scoped to their store server-side; admins manage stores/users and see a cross-store overview.
@@ -39,14 +40,15 @@ Log in with the seeded credentials from the seed output. Camera scanning require
 ## Verification scripts
 
 ```bash
-npm run test:detect   # carrier detection rules (offline, 17 checks)
-npm run test:scan     # scan workflows against the DB (13 checks, cleans up after itself)
+npm run test:detect   # carrier detection + pickup policies (offline, 22 checks)
+npm run test:scan     # scan workflows + handover gating against the DB (23 checks, cleans up after itself)
 ```
 
 ## Architecture notes
 
 - `src/lib/status.ts` — the status state machine; both scanning and detail-page buttons go through it.
 - `src/lib/packages.ts#registerScan` — single entry point for every scan: first scan creates, rescan advances (pickup collection, handoff completion), terminal states reject.
+- `src/lib/verification.ts#checkHandover` — pure gate for AWAITING_PICKUP → PICKED_UP, driven by the carrier's `pickupPolicy`; the UI checklist (`HandoverPanel`) mirrors it but the server re-validates. Captured carrier-app codes are audit evidence in v1; validating them (and pushing proof-of-delivery) goes through the `CarrierProvider` seam once API credentials exist.
 - `src/lib/carriers/` — pure detection rules per carrier; `detectCarrierCandidates()` runs client-side.
 - **Security boundary**: clerk-level Server Actions never accept a `storeId` from the client — it always comes from the session (`src/lib/session.ts`).
 - Production build: stop the dev server first (`next build` and `next dev` share `.next`).

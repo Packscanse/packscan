@@ -5,15 +5,13 @@ import { prisma } from "@/lib/prisma";
 import { NEXT_STATUS, STATUS_LABELS, canCancel } from "@/lib/status";
 import { advancePackageAction, cancelPackageAction } from "@/actions/packages";
 import { PackageStatusBadge } from "@/components/packages/PackageStatusBadge";
+import { HandoverForm } from "@/components/packages/HandoverForm";
 import { CARRIER_LABELS } from "@/lib/carriers";
+import { ID_TYPE_LABELS } from "@/lib/verification";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-
-const ADVANCE_LABELS: Partial<Record<string, string>> = {
-  AWAITING_PICKUP: "Mark picked up",
-  PENDING_HANDOFF: "Mark handed off",
-};
 
 export default async function PackageDetailPage({
   params,
@@ -29,7 +27,7 @@ export default async function PackageDetailPage({
       store: { select: { name: true, code: true } },
       scanEvents: {
         orderBy: { scannedAt: "asc" },
-        include: { user: { select: { name: true } } },
+        include: { user: { select: { name: true } }, verification: true },
       },
       notifications: { orderBy: { createdAt: "asc" } },
     },
@@ -40,7 +38,6 @@ export default async function PackageDetailPage({
   }
 
   const next = NEXT_STATUS[pkg.status];
-  const advanceLabel = ADVANCE_LABELS[pkg.status];
 
   return (
     <div className="grid gap-4">
@@ -92,15 +89,36 @@ export default async function PackageDetailPage({
         </CardContent>
       </Card>
 
-      {(next || canCancel(pkg.status)) && (
-        <div className="flex flex-wrap gap-2">
-          {next && advanceLabel && (
+      {/* Pickup completion goes through carrier-policy verification. */}
+      {pkg.status === "AWAITING_PICKUP" && (
+        <HandoverForm
+          packageId={pkg.id}
+          carrier={pkg.carrier}
+          customerName={pkg.customerName}
+        />
+      )}
+
+      {(next === "HANDED_OFF" || canCancel(pkg.status)) && (
+        <div className="flex flex-wrap items-end gap-2">
+          {next === "HANDED_OFF" && (
             <form action={advancePackageAction.bind(null, pkg.id)}>
-              <SubmitButton pendingText="Updating…">{advanceLabel}</SubmitButton>
+              <SubmitButton pendingText="Updating…">Mark handed off</SubmitButton>
             </form>
           )}
           {canCancel(pkg.status) && (
-            <form action={cancelPackageAction.bind(null, pkg.id)}>
+            <form
+              action={cancelPackageAction.bind(null, pkg.id)}
+              className="flex flex-wrap items-end gap-2"
+            >
+              <Input
+                name="reason"
+                required
+                minLength={3}
+                maxLength={300}
+                placeholder="Reason for cancelling (required)"
+                aria-label="Cancellation reason"
+                className="w-64"
+              />
               <SubmitButton variant="destructive" pendingText="Cancelling…">
                 Cancel package
               </SubmitButton>
@@ -126,6 +144,22 @@ export default async function PackageDetailPage({
                 {format(event.scannedAt, "MMM d yyyy, HH:mm:ss")} · {event.user.name} ·{" "}
                 {event.inputMethod.toLowerCase().replace("_", " ")}
               </p>
+              {event.verification && (
+                <p className="text-muted-foreground">
+                  Verified:{" "}
+                  {[
+                    event.verification.presentedCode &&
+                      `carrier-app code captured (${event.verification.presentedCode})`,
+                    event.verification.idChecked &&
+                      `ID checked${event.verification.idType ? ` (${ID_TYPE_LABELS[event.verification.idType]})` : ""}`,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                  {event.verification.collectorName &&
+                    ` · collected by ${event.verification.collectorName}`}
+                </p>
+              )}
+              {event.note && <p className="text-muted-foreground">Reason: {event.note}</p>}
             </div>
           ))}
         </CardContent>

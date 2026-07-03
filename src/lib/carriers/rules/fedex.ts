@@ -8,6 +8,10 @@ const FEDEX_LENGTHS = new Set([12, 15, 20]);
 export const fedexProvider: CarrierProvider = {
   code: "FEDEX",
 
+  // FedEx Hold-at-Location: government photo ID matching the label name;
+  // no pickup-code scheme, and the addressee must collect in person.
+  pickupPolicy: { code: "none", idCheck: "required", proxyAllowed: false },
+
   detect(trackingNumber) {
     if (/^\d+$/.test(trackingNumber) && FEDEX_LENGTHS.has(trackingNumber.length)) {
       return { carrier: "FEDEX", confidence: "high", matchedRule: `fedex-${trackingNumber.length}digit` };

@@ -6,6 +6,10 @@ const NORDIC_COUNTRIES = new Set(["SE", "NO", "DK", "FI"]);
 export const postnordProvider: CarrierProvider = {
   code: "POSTNORD",
 
+  // PostNord: pickup code (app/notification QR) plus photo ID; proxy pickup
+  // allowed with the code and both IDs.
+  pickupPolicy: { code: "required", idCheck: "required", proxyAllowed: true },
+
   detect(trackingNumber) {
     const country = s10CountryCode(trackingNumber);
     if (!country || !NORDIC_COUNTRIES.has(country)) return null;

@@ -9,6 +9,8 @@ import {
   type DetectionResult,
 } from "@/lib/carriers";
 import { FLOW_LABELS, type ScanFlow } from "@/lib/status";
+import type { HandoverInput } from "@/lib/verification";
+import type { HandoverContext } from "@/lib/packages";
 import { processScan, type ProcessScanResult } from "@/actions/scan";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +20,7 @@ import { CameraScanner } from "./CameraScanner";
 import { HardwareScannerInput } from "./HardwareScannerInput";
 import { FlowPicker } from "./FlowPicker";
 import { CarrierBadge } from "./CarrierBadge";
+import { HandoverPanel } from "./HandoverPanel";
 import { ScanResultCard } from "./ScanResultCard";
 
 interface PendingScan {
@@ -37,6 +40,9 @@ export function ScanScreen() {
   const [manualValue, setManualValue] = useState("");
   const [customer, setCustomer] = useState({ name: "", phone: "", email: "", notes: "" });
   const [result, setResult] = useState<ProcessScanResult | null>(null);
+  // Set when the server demands handover verification to complete a pickup.
+  const [handover, setHandover] = useState<(HandoverContext & { inputMethod: ScanInputMethod }) | null>(null);
+  const [handoverError, setHandoverError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const lastDetection = useRef({ code: "", at: 0 });
 
@@ -70,9 +76,37 @@ export function ScanScreen() {
         customerEmail: customer.email,
         notes: customer.notes,
       });
-      setResult(res);
+      if (!res.ok && res.code === "VERIFICATION_REQUIRED") {
+        // Existing AWAITING_PICKUP package: switch to the handover step.
+        setHandover({ ...res.handover, inputMethod: pendingScan.method });
+        setHandoverError(null);
+      } else {
+        setResult(res);
+      }
       setPendingScan(null);
       setCustomer({ name: "", phone: "", email: "", notes: "" });
+    });
+  }
+
+  function confirmHandover(verification: HandoverInput) {
+    if (!handover) return;
+    startTransition(async () => {
+      const res = await processScan({
+        trackingNumber: handover.trackingNumber,
+        flow,
+        carrier: handover.carrier,
+        carrierManual: false,
+        inputMethod: handover.inputMethod,
+        verification,
+      });
+      if (!res.ok && res.code === undefined) {
+        // Verification rejected (wrong code, missing ID…) — stay on the step.
+        setHandoverError(res.error);
+        return;
+      }
+      setResult(res.ok ? res : null);
+      setHandover(null);
+      setHandoverError(null);
     });
   }
 
@@ -80,7 +114,7 @@ export function ScanScreen() {
     setPendingScan(null);
   }
 
-  const scanning = !pendingScan && !result;
+  const scanning = !pendingScan && !result && !handover;
 
   return (
     <div className="grid gap-4">
@@ -211,6 +245,29 @@ export function ScanScreen() {
                 Discard
               </Button>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {handover && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">
+              Confirm handover — <span className="font-mono">{handover.trackingNumber}</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <HandoverPanel
+              carrier={handover.carrier}
+              customerName={handover.customerName}
+              isPending={isPending}
+              error={handoverError}
+              onConfirm={confirmHandover}
+              onDiscard={() => {
+                setHandover(null);
+                setHandoverError(null);
+              }}
+            />
           </CardContent>
         </Card>
       )}
