@@ -20,6 +20,36 @@ export interface HandoverRecord {
 
 export const ID_TYPES: IdType[] = ["PASSPORT", "DRIVERS_LICENSE", "NATIONAL_ID", "OTHER"];
 
+/** Outcome of classifying a scan made during the handover step. */
+export type HandoverScan =
+  | { kind: "ID_DOCUMENT"; idType: IdType }
+  | { kind: "PICKUP_CODE"; code: string };
+
+/**
+ * One scanner pipeline at handover: the clerk scans either the carrier-app
+ * QR or the customer's ID document, and we tell them apart by payload shape.
+ * ID documents are recognized (AAMVA PDF417 on driver's licenses, ICAO MRZ
+ * on passports/ID cards) but their contents are NEVER stored — recognizing
+ * one only flips the "ID checked" flag and its type. Anything else is
+ * treated as the presented pickup code.
+ */
+export function classifyHandoverScan(raw: string): HandoverScan {
+  const payload = raw.trim();
+
+  // AAMVA PDF417 (North American driver's licenses): "@" header / ANSI marker.
+  if (payload.startsWith("@") || /\bANSI\s?\d{6}/.test(payload)) {
+    return { kind: "ID_DOCUMENT", idType: "DRIVERS_LICENSE" };
+  }
+  // ICAO 9303 MRZ always contains "<<" filler runs; the leading document
+  // code distinguishes passports (P...) from ID cards (I/A/C...).
+  if (payload.includes("<<")) {
+    if (/^P[A-Z<]/.test(payload)) return { kind: "ID_DOCUMENT", idType: "PASSPORT" };
+    if (/^[IAC][A-Z<]/.test(payload)) return { kind: "ID_DOCUMENT", idType: "NATIONAL_ID" };
+  }
+
+  return { kind: "PICKUP_CODE", code: payload };
+}
+
 export const ID_TYPE_LABELS: Record<IdType, string> = {
   PASSPORT: "Passport",
   DRIVERS_LICENSE: "Driver's license",

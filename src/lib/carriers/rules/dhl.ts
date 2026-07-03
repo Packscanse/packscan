@@ -31,6 +31,11 @@ export const dhlProvider: CarrierProvider = {
     return null;
   },
 
+  async reportArrival() {
+    // Real implementation: DHL ServicePoint event API, once credentials exist.
+    return { status: "NOT_CONFIGURED" as const };
+  },
+
   async lookupTrackingDetails() {
     throw new Error("DHL tracking API lookup not implemented (no credentials configured)");
   },

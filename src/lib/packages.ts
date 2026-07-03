@@ -14,7 +14,7 @@ import {
   canCancel,
   type ScanFlow,
 } from "@/lib/status";
-import { getPickupPolicy, normalizeTrackingNumber } from "@/lib/carriers";
+import { CARRIER_PROVIDERS, getPickupPolicy, normalizeTrackingNumber } from "@/lib/carriers";
 import { checkHandover, type HandoverInput, type HandoverRecord } from "@/lib/verification";
 
 /** What the UI needs to render the handover-verification step. */
@@ -110,7 +110,13 @@ export async function registerScan(args: RegisterScanArgs): Promise<ScanOutcome>
       });
       return created;
     });
-    if (status === "AWAITING_PICKUP") await notifyCustomer(pkg, "AWAITING_PICKUP");
+    if (status === "AWAITING_PICKUP") {
+      // Carrier-first: report the arrival so the carrier notifies the
+      // recipient in its own app. Only fall back to messaging the customer
+      // directly while no carrier API is configured.
+      const reported = await reportArrivalToCarrier(pkg);
+      if (!reported) await notifyCustomer(pkg, "AWAITING_PICKUP");
+    }
     return { ok: true, kind: "created", package: pkg };
   }
 
@@ -233,6 +239,18 @@ async function transition(
     });
     return updated;
   });
+}
+
+/** True only when the carrier accepted the arrival event. Never fatal to the scan. */
+async function reportArrivalToCarrier(pkg: Package): Promise<boolean> {
+  const provider = CARRIER_PROVIDERS.find((p) => p.code === pkg.carrier);
+  if (!provider) return false; // UNKNOWN carrier: nothing to report to
+  try {
+    const report = await provider.reportArrival(pkg.trackingNumber);
+    return report.status === "REPORTED";
+  } catch {
+    return false;
+  }
 }
 
 /**

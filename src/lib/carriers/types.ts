@@ -30,12 +30,28 @@ export interface PickupPolicy {
   proxyAllowed: boolean;
 }
 
+/**
+ * Result of reporting an arrival scan to the carrier. REPORTED means the
+ * carrier accepted it and will notify the recipient through its own app;
+ * NOT_CONFIGURED means no API credentials yet — the caller falls back to
+ * direct notification.
+ */
+export interface ArrivalReport {
+  status: "REPORTED" | "NOT_CONFIGURED";
+}
+
 export interface CarrierProvider {
   readonly code: CarrierCode;
   /** Handover verification this carrier mandates at pickup. */
   readonly pickupPolicy: PickupPolicy;
   /** Pure pattern matching, no network calls. Null if this carrier's rules don't match. */
   detect(trackingNumber: string): DetectionResult | null;
+  /**
+   * Tell the carrier the parcel arrived at this pickup point, so the carrier
+   * notifies the recipient in its own app. Returns NOT_CONFIGURED until API
+   * credentials exist and a real implementation is dropped in.
+   */
+  reportArrival(trackingNumber: string): Promise<ArrivalReport>;
   /**
    * Seam for real carrier tracking APIs. Not implemented in v1 — each provider
    * throws until API credentials exist and a real implementation is dropped in.

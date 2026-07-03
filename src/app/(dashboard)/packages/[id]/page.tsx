@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { getRequiredSession } from "@/lib/session";
@@ -9,6 +10,7 @@ import { HandoverForm } from "@/components/packages/HandoverForm";
 import { CARRIER_LABELS } from "@/lib/carriers";
 import { ID_TYPE_LABELS } from "@/lib/verification";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -70,7 +72,9 @@ export default async function PackageDetailPage({
           </p>
           {pkg.customerName && (
             <p>
-              <span className="text-muted-foreground">Customer: </span>
+              <span className="text-muted-foreground">
+                {pkg.direction === "OUTBOUND" ? "Sender: " : "Customer: "}
+              </span>
               {pkg.customerName}
             </p>
           )}
@@ -98,12 +102,17 @@ export default async function PackageDetailPage({
         />
       )}
 
-      {(next === "HANDED_OFF" || canCancel(pkg.status)) && (
+      {(next === "HANDED_OFF" || pkg.direction === "OUTBOUND" || canCancel(pkg.status)) && (
         <div className="flex flex-wrap items-end gap-2">
           {next === "HANDED_OFF" && (
             <form action={advancePackageAction.bind(null, pkg.id)}>
               <SubmitButton pendingText="Updating…">Mark handed off</SubmitButton>
             </form>
+          )}
+          {pkg.direction === "OUTBOUND" && (
+            <Button asChild variant="outline">
+              <Link href={`/packages/${pkg.id}/receipt`}>Drop-off receipt</Link>
+            </Button>
           )}
           {canCancel(pkg.status) && (
             <form

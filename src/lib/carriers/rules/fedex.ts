@@ -19,6 +19,11 @@ export const fedexProvider: CarrierProvider = {
     return null;
   },
 
+  async reportArrival() {
+    // Real implementation: FedEx OnSite event API, once credentials exist.
+    return { status: "NOT_CONFIGURED" as const };
+  },
+
   async lookupTrackingDetails() {
     throw new Error("FEDEX tracking API lookup not implemented (no credentials configured)");
   },

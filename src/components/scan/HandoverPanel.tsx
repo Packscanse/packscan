@@ -3,7 +3,12 @@
 import { useState } from "react";
 import type { IdType } from "@prisma/client";
 import { CARRIER_LABELS, getPickupPolicy, type CarrierCode } from "@/lib/carriers";
-import { ID_TYPES, ID_TYPE_LABELS, type HandoverInput } from "@/lib/verification";
+import {
+  ID_TYPES,
+  ID_TYPE_LABELS,
+  classifyHandoverScan,
+  type HandoverInput,
+} from "@/lib/verification";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,6 +50,7 @@ export function HandoverPanel({
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [idChecked, setIdChecked] = useState(false);
   const [idType, setIdType] = useState<IdType | "">("");
+  const [idScanned, setIdScanned] = useState(false);
   const [collectorName, setCollectorName] = useState("");
 
   const codeRequired = policy.code === "required";
@@ -55,11 +61,20 @@ export function HandoverPanel({
     (policy.idCheck !== "required" || idChecked) &&
     (!idChecked || idType !== "");
 
-  function captureCode(raw: string) {
-    const code = raw.trim();
-    if (!code) return;
-    setPresentedCode(code);
-    setCameraOn(false);
+  // One pipeline for every scan during handover: an ID document only flips
+  // the ID-checked flag (its contents are discarded, never stored); anything
+  // else is the presented pickup code.
+  function captureScan(raw: string) {
+    if (!raw.trim()) return;
+    const scan = classifyHandoverScan(raw);
+    if (scan.kind === "ID_DOCUMENT") {
+      setIdChecked(true);
+      setIdType(scan.idType);
+      setIdScanned(true);
+    } else {
+      setPresentedCode(scan.code);
+      setCameraOn(false);
+    }
   }
 
   return (
@@ -77,14 +92,15 @@ export function HandoverPanel({
         )}
       </div>
 
+      {/* Always armed: IDs are scannable even for carriers with no code scheme. */}
+      <HardwareScannerInput onDetect={captureScan} />
+
       {showCode && (
         <div className="grid gap-2">
           <Label htmlFor="presented-code">
-            Customer&rsquo;s pickup code — scan the QR in their {CARRIER_LABELS[carrier]} app
-            {codeRequired ? "" : " (if they have one)"}
+            Scan the QR in their {CARRIER_LABELS[carrier]} app
+            {codeRequired ? "" : " (if they have one)"}, or scan their ID
           </Label>
-          {/* Armed for scanning the customer's phone screen. */}
-          <HardwareScannerInput onDetect={captureCode} />
           {presentedCode ? (
             <div className="flex items-center gap-2">
               <p className="break-all font-mono text-sm">{presentedCode}</p>
@@ -100,7 +116,7 @@ export function HandoverPanel({
               {cameraOn ? (
                 <div className="grid gap-2">
                   <CameraScanner
-                    onDetect={captureCode}
+                    onDetect={captureScan}
                     onError={(message) => {
                       setCameraError(message);
                       setCameraOn(false);
@@ -130,10 +146,10 @@ export function HandoverPanel({
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
-                        captureCode(e.currentTarget.value);
+                        captureScan(e.currentTarget.value);
                       }
                     }}
-                    onBlur={(e) => captureCode(e.currentTarget.value)}
+                    onBlur={(e) => captureScan(e.currentTarget.value)}
                   />
                 </div>
               )}
@@ -148,11 +164,19 @@ export function HandoverPanel({
           <input
             type="checkbox"
             checked={idChecked}
-            onChange={(e) => setIdChecked(e.target.checked)}
+            onChange={(e) => {
+              setIdChecked(e.target.checked);
+              if (!e.target.checked) setIdScanned(false);
+            }}
             className="size-4 accent-primary"
           />
           Photo ID checked{policy.idCheck === "required" ? " (required)" : ""}
         </label>
+        {idScanned && (
+          <p className="text-xs text-muted-foreground">
+            ID scanned and verified — document contents are not stored.
+          </p>
+        )}
         {idChecked && (
           <Select value={idType} onValueChange={(v) => setIdType(v as IdType)}>
             <SelectTrigger aria-label="Type of ID checked" className="w-full">

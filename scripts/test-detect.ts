@@ -1,5 +1,6 @@
 import { CARRIER_PROVIDERS, detectCarrier, detectCarrierCandidates, getPickupPolicy } from "../src/lib/carriers";
 import type { CarrierCode, Confidence } from "../src/lib/carriers";
+import { classifyHandoverScan } from "../src/lib/verification";
 
 let failures = 0;
 
@@ -62,6 +63,22 @@ const unknownPolicy = getPickupPolicy("UNKNOWN");
 const unknownOk = unknownPolicy.idCheck === "required";
 if (!unknownOk) failures++;
 console.log(`${unknownOk ? "PASS" : "FAIL"}  UNKNOWN carrier falls back to mandatory ID check`);
+
+// Handover scan classification: ID documents vs pickup codes. Contents of a
+// recognized ID are never stored, so only kind/idType matter here.
+function expectClassify(label: string, input: string, expected: string) {
+  const result = classifyHandoverScan(input);
+  const actual = result.kind === "ID_DOCUMENT" ? `ID:${result.idType}` : "CODE";
+  const ok = actual === expected;
+  if (!ok) failures++;
+  console.log(`${ok ? "PASS" : "FAIL"}  classify ${label} → ${actual}${ok ? "" : ` (expected ${expected})`}`);
+}
+expectClassify("AAMVA driver's license", "@\n\x1e\rANSI 636000090002DL00410278ZV03190008DLDAQ123456789", "ID:DRIVERS_LICENSE");
+expectClassify("passport MRZ (TD3)", "P<SWEBERGSTROM<<JOHAN<<<<<<<<<<<<<<<<<<<<<<<", "ID:PASSPORT");
+expectClassify("national ID MRZ (TD1)", "I<SWE123456789<<<<<<<<<<<<<<<<8309120M2601015SWE<<<<<<<<<<<4", "ID:NATIONAL_ID");
+expectClassify("carrier-app QR payload", "PNQR-8f3a2b1c-PICKUP", "CODE");
+expectClassify("plain numeric pickup code", "482913", "CODE");
+expectClassify("tracking-like code starting with I", "ID12345678", "CODE");
 
 console.log(failures === 0 ? "\nAll detection checks passed." : `\n${failures} check(s) FAILED.`);
 process.exit(failures === 0 ? 0 : 1);

@@ -16,6 +16,7 @@ export type ProcessScanResult =
       carrier: string;
       status: PackageStatus;
       fromStatus?: PackageStatus;
+      direction: "INBOUND" | "OUTBOUND";
     }
   // Pickup completion needs the handover step: resubmit with `verification`.
   | { ok: false; code: "VERIFICATION_REQUIRED"; error: string; handover: HandoverContext }
@@ -56,5 +57,6 @@ export async function processScan(input: unknown): Promise<ProcessScanResult> {
     carrier: outcome.package.carrier,
     status: outcome.package.status,
     fromStatus: outcome.kind === "transitioned" ? outcome.fromStatus : undefined,
+    direction: outcome.package.direction,
   };
 }

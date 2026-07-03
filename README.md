@@ -4,8 +4,10 @@ Unified parcel scanning for stores acting as pickup/drop-off points for **DHL, P
 
 ## What it does
 
-- **Three workflows**, picked per scan: inbound customer pickup (arrive → SMS/email notify → verified handover), plain inventory logging, and outbound carrier handoff (pending → handed off).
+- **Three workflows**, picked per scan: inbound customer pickup (arrive → carrier/customer notified → verified handover), plain inventory logging, and outbound carrier handoff — including drop-offs from private senders, with sender capture and a printable **drop-off receipt**.
 - **Carrier-policy pickup verification**: completing a pickup is gated on what each carrier mandates at handover — pickup code and/or photo-ID check, proxy-pickup rules (`pickupPolicy` per carrier rule module). Store-only by design: customers authenticate with the **carrier's own app** — the clerk scans the QR/code off their phone screen (hardware scanner, camera, or typed) and the proof (captured code, ID type, collector) is persisted on the audit event. Cancelling requires a reason.
+- **ID scan-to-verify**: the handover scanner recognizes ID documents (AAMVA PDF417 driver's licenses, ICAO MRZ passports/ID cards) and flips the ID check automatically — document contents are classified and **discarded, never stored** (`classifyHandoverScan`).
+- **Carrier-first arrival reporting**: registering a pickup parcel calls `CarrierProvider.reportArrival()` so the carrier notifies the recipient in its own app; the direct SMS/email stub is only the fallback while carrier APIs are unconfigured.
 - **Carrier auto-detection** from tracking-number format (UPU S10 checksums, carrier prefix rules) with confidence ranking; manual override is always one tap away. Ambiguous formats (e.g. the `3S` prefix shared by PostNL and DHL Parcel Benelux) surface all candidates.
 - **Three scan inputs on one screen**: phone/tablet camera (ZXing), USB/Bluetooth keyboard-wedge scanners (burst-timing discrimination so human typing never misfires), and manual entry.
 - **Multi-store** with ADMIN/CLERK roles. Clerks are hard-scoped to their store server-side; admins manage stores/users (deactivate/reactivate, role changes, password resets — guarded so the last active admin can't be locked out) and see a cross-store overview.
@@ -40,8 +42,8 @@ Log in with the seeded credentials from the seed output. Camera scanning require
 ## Verification scripts
 
 ```bash
-npm run test:detect   # carrier detection + pickup policies (offline, 22 checks)
-npm run test:scan     # scan workflows + handover gating against the DB (23 checks, cleans up after itself)
+npm run test:detect   # carrier detection, pickup policies, ID-scan classification (offline, 28 checks)
+npm run test:scan     # scan workflows + handover gating against the DB (25 checks, cleans up after itself)
 npm run test:users    # user lifecycle rules + lockout guards against the DB (11 checks, cleans up after itself)
 ```
 

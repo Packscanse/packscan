@@ -198,10 +198,13 @@ export function ScanScreen() {
               onChange={setCarrier}
             />
 
-            {flow === "INBOUND_PICKUP" && (
+            {/* Inbound pickup: the recipient. Outbound: the private sender dropping off. */}
+            {(flow === "INBOUND_PICKUP" || flow === "OUTBOUND_HANDOFF") && (
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="grid gap-2">
-                  <Label htmlFor="customer-name">Customer name</Label>
+                  <Label htmlFor="customer-name">
+                    {flow === "OUTBOUND_HANDOFF" ? "Sender name" : "Customer name"}
+                  </Label>
                   <Input
                     id="customer-name"
                     value={customer.name}
@@ -209,7 +212,9 @@ export function ScanScreen() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="customer-phone">Phone (SMS notification)</Label>
+                  <Label htmlFor="customer-phone">
+                    {flow === "OUTBOUND_HANDOFF" ? "Sender phone" : "Phone (SMS notification)"}
+                  </Label>
                   <Input
                     id="customer-phone"
                     type="tel"
@@ -218,7 +223,9 @@ export function ScanScreen() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="customer-email">Email (fallback notification)</Label>
+                  <Label htmlFor="customer-email">
+                    {flow === "OUTBOUND_HANDOFF" ? "Sender email" : "Email (fallback notification)"}
+                  </Label>
                   <Input
                     id="customer-email"
                     type="email"

@@ -32,13 +32,18 @@ export function ScanResultCard({
             <p className="text-sm text-muted-foreground">
               {result.carrier} · {result.trackingNumber}
             </p>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button type="button" onClick={onNext}>
                 Scan next
               </Button>
               <Button asChild variant="outline">
                 <Link href={`/packages/${result.packageId}`}>View package</Link>
               </Button>
+              {result.direction === "OUTBOUND" && result.kind === "created" && (
+                <Button asChild variant="outline">
+                  <Link href={`/packages/${result.packageId}/receipt`}>Print drop-off receipt</Link>
+                </Button>
+              )}
             </div>
           </>
         ) : (

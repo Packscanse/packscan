@@ -25,6 +25,11 @@ export const postnlProvider: CarrierProvider = {
     return null;
   },
 
+  async reportArrival() {
+    // Real implementation: PostNL location/event API, once credentials exist.
+    return { status: "NOT_CONFIGURED" as const };
+  },
+
   async lookupTrackingDetails() {
     throw new Error("POSTNL tracking API lookup not implemented (no credentials configured)");
   },

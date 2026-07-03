@@ -30,6 +30,7 @@ export function CameraScanner({
       BarcodeFormat.ITF,
       BarcodeFormat.QR_CODE,
       BarcodeFormat.DATA_MATRIX,
+      BarcodeFormat.PDF_417, // driver's licenses (ID scan at handover)
     ]);
     const reader = new BrowserMultiFormatReader(hints);
     let controls: IScannerControls | undefined;

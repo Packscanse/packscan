@@ -140,11 +140,22 @@ async function main() {
   });
   check("fedex pickup: ID check alone completes it", fed2.ok && fed2.package.status === "PICKED_UP");
 
-  // --- Flow 3: outbound handoff (no verification gate) ---
-  const hand1 = await registerScan({ ...base, trackingNumber: `${TEST_PREFIX}HAND1`, flow: "OUTBOUND_HANDOFF" });
+  // --- Flow 3: outbound handoff from a private sender (no verification gate) ---
+  const hand1 = await registerScan({
+    ...base,
+    trackingNumber: `${TEST_PREFIX}HAND1`,
+    flow: "OUTBOUND_HANDOFF",
+    customerName: "Private Sender",
+    customerPhone: "+46708888888",
+  });
   check("handoff: first scan creates PENDING_HANDOFF", hand1.ok && hand1.kind === "created" && hand1.package.status === "PENDING_HANDOFF");
+  check("handoff: sender contact stored on the package", hand1.ok && hand1.package.customerName === "Private Sender");
   const hand2 = await registerScan({ ...base, trackingNumber: `${TEST_PREFIX}HAND1`, flow: "OUTBOUND_HANDOFF" });
   check("handoff: rescan transitions to HANDED_OFF", hand2.ok && hand2.kind === "transitioned" && hand2.package.status === "HANDED_OFF");
+  const handNotifs = await prisma.notification.count({
+    where: { package: { trackingNumber: `${TEST_PREFIX}HAND1`, direction: "OUTBOUND" } },
+  });
+  check("handoff: outbound never notifies, even with contact info", handNotifs === 0, `got ${handNotifs}`);
 
   // --- Same tracking number, both directions = two distinct packages ---
   const both = await registerScan({ ...base, trackingNumber: `${TEST_PREFIX}HAND1`, flow: "INBOUND_LOG" });
@@ -186,7 +197,7 @@ async function main() {
 
   // No notifications for flows without contact info
   const noContactNotifs = await prisma.notification.count({
-    where: { package: { trackingNumber: { in: [`${TEST_PREFIX}LOG1`, `${TEST_PREFIX}FED01`, `${TEST_PREFIX}HAND1`, `${TEST_PREFIX}CANCEL1`] } } },
+    where: { package: { trackingNumber: { in: [`${TEST_PREFIX}LOG1`, `${TEST_PREFIX}FED01`, `${TEST_PREFIX}CANCEL1`] } } },
   });
   check("no notifications without contact info", noContactNotifs === 0, `got ${noContactNotifs}`);
 
