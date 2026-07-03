@@ -27,3 +27,19 @@ export const CreateUserSchema = z.object({
   role: z.enum(["ADMIN", "CLERK"]),
   storeId: z.string().min(1),
 });
+
+export const SetUserActiveSchema = z.object({
+  userId: z.string().min(1),
+  // Hidden form field — arrives as a string.
+  active: z.enum(["true", "false"]).transform((v) => v === "true"),
+});
+
+export const SetUserRoleSchema = z.object({
+  userId: z.string().min(1),
+  role: z.enum(["ADMIN", "CLERK"]),
+});
+
+export const ResetPasswordSchema = z.object({
+  userId: z.string().min(1),
+  password: z.string().min(8).max(128),
+});

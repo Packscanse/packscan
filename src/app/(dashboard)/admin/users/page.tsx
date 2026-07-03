@@ -1,6 +1,7 @@
 import { getRequiredAdminSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { CreateUserForm } from "@/components/admin/CreateUserForm";
+import { UserActions } from "@/components/admin/UserActions";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -13,7 +14,7 @@ import {
 } from "@/components/ui/table";
 
 export default async function AdminUsersPage() {
-  await getRequiredAdminSession();
+  const session = await getRequiredAdminSession();
   const [users, stores] = await Promise.all([
     prisma.user.findMany({
       orderBy: { createdAt: "asc" },
@@ -39,22 +40,36 @@ export default async function AdminUsersPage() {
                 <TableHead>Role</TableHead>
                 <TableHead>Store</TableHead>
                 <TableHead>Active</TableHead>
+                <TableHead>Manage</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {users.map((user) => (
                 <TableRow key={user.id}>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>{user.name}</TableCell>
-                  <TableCell>
+                  <TableCell className="align-top">{user.email}</TableCell>
+                  <TableCell className="align-top">
+                    {user.name}
+                    {user.id === session.user.id && (
+                      <span className="text-muted-foreground"> (you)</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="align-top">
                     <Badge variant={user.role === "ADMIN" ? "default" : "outline"}>
                       {user.role}
                     </Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="align-top">
                     {user.store.name} ({user.store.code})
                   </TableCell>
-                  <TableCell>{user.active ? "Yes" : "No"}</TableCell>
+                  <TableCell className="align-top">{user.active ? "Yes" : "No"}</TableCell>
+                  <TableCell>
+                    <UserActions
+                      userId={user.id}
+                      role={user.role}
+                      active={user.active}
+                      isSelf={user.id === session.user.id}
+                    />
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

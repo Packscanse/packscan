@@ -8,7 +8,7 @@ Unified parcel scanning for stores acting as pickup/drop-off points for **DHL, P
 - **Carrier-policy pickup verification**: completing a pickup is gated on what each carrier mandates at handover — pickup code and/or photo-ID check, proxy-pickup rules (`pickupPolicy` per carrier rule module). Store-only by design: customers authenticate with the **carrier's own app** — the clerk scans the QR/code off their phone screen (hardware scanner, camera, or typed) and the proof (captured code, ID type, collector) is persisted on the audit event. Cancelling requires a reason.
 - **Carrier auto-detection** from tracking-number format (UPU S10 checksums, carrier prefix rules) with confidence ranking; manual override is always one tap away. Ambiguous formats (e.g. the `3S` prefix shared by PostNL and DHL Parcel Benelux) surface all candidates.
 - **Three scan inputs on one screen**: phone/tablet camera (ZXing), USB/Bluetooth keyboard-wedge scanners (burst-timing discrimination so human typing never misfires), and manual entry.
-- **Multi-store** with ADMIN/CLERK roles. Clerks are hard-scoped to their store server-side; admins manage stores/users and see a cross-store overview.
+- **Multi-store** with ADMIN/CLERK roles. Clerks are hard-scoped to their store server-side; admins manage stores/users (deactivate/reactivate, role changes, password resets — guarded so the last active admin can't be locked out) and see a cross-store overview.
 - **Session security for shared devices**: per-store inactivity logout (1–10 min, admin-configured on the Stores page), failed-login rate limiting, and a periodic account re-check so deactivating a user revokes their session within ~5 minutes.
 - **Full audit trail**: every scan/status action is an append-only `ScanEvent` with actor and input method.
 - Notifications and carrier tracking APIs are **stubbed behind interfaces** (`src/lib/notifications`, `CarrierProvider.lookupTrackingDetails`) — swap in Twilio/Resend/carrier credentials without restructuring.
@@ -42,6 +42,7 @@ Log in with the seeded credentials from the seed output. Camera scanning require
 ```bash
 npm run test:detect   # carrier detection + pickup policies (offline, 22 checks)
 npm run test:scan     # scan workflows + handover gating against the DB (23 checks, cleans up after itself)
+npm run test:users    # user lifecycle rules + lockout guards against the DB (11 checks, cleans up after itself)
 ```
 
 ## Architecture notes

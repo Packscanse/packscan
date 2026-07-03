@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:detect": "tsx scripts/test-detect.ts",
-    "test:scan": "tsx --env-file=.env scripts/test-scan-logic.ts"
+    "test:scan": "tsx --env-file=.env scripts/test-scan-logic.ts",
+    "test:users": "tsx --env-file=.env scripts/test-user-admin.ts"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",
