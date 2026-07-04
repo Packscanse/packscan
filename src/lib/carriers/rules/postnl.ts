@@ -1,4 +1,5 @@
 import type { CarrierProvider } from "../types";
+import { notConfigured } from "./not-configured";
 import { isValidS10, s10CountryCode } from "./s10-checksum";
 
 // Domestic PostNL barcodes: "3S"/"2S" prefix + alphanumeric body (customer
@@ -25,10 +26,11 @@ export const postnlProvider: CarrierProvider = {
     return null;
   },
 
-  async reportArrival() {
-    // Real implementation: PostNL location/event API, once credentials exist.
-    return { status: "NOT_CONFIGURED" as const };
-  },
+  // Real implementations: PostNL location/event API, once credentials exist.
+  reportArrival: notConfigured,
+  reportPickedUp: notConfigured,
+  reportAcceptedOutbound: notConfigured,
+  reportReturned: notConfigured,
 
   async lookupTrackingDetails() {
     throw new Error("POSTNL tracking API lookup not implemented (no credentials configured)");

@@ -11,7 +11,7 @@ import {
 import { FLOW_LABELS, type ScanFlow } from "@/lib/status";
 import type { HandoverInput } from "@/lib/verification";
 import type { HandoverContext } from "@/lib/packages";
-import { processScan, type ProcessScanResult } from "@/actions/scan";
+import { lookupPreAdvice, processScan, type ProcessScanResult } from "@/actions/scan";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,7 +38,8 @@ export function ScanScreen() {
   const [cameraOn, setCameraOn] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [manualValue, setManualValue] = useState("");
-  const [customer, setCustomer] = useState({ name: "", phone: "", email: "", notes: "" });
+  const [customer, setCustomer] = useState({ name: "", phone: "", email: "", notes: "", shelf: "" });
+  const [preAdviceMatched, setPreAdviceMatched] = useState(false);
   const [result, setResult] = useState<ProcessScanResult | null>(null);
   // Set when the server demands handover verification to complete a pickup.
   const [handover, setHandover] = useState<(HandoverContext & { inputMethod: ScanInputMethod }) | null>(null);
@@ -59,6 +60,19 @@ export function ScanScreen() {
     setPendingScan({ code, method, candidates });
     setCarrier(candidates[0]?.carrier ?? "UNKNOWN");
     setResult(null);
+    setPreAdviceMatched(false);
+    // Announced parcel? Exact carrier + pre-filled recipient, no typing.
+    void lookupPreAdvice(code).then((match) => {
+      if (!match || lastDetection.current.code !== code) return;
+      setCarrier(match.carrier);
+      setCustomer((prev) => ({
+        ...prev,
+        name: match.customerName ?? prev.name,
+        phone: match.customerPhone ?? prev.phone,
+        email: match.customerEmail ?? prev.email,
+      }));
+      setPreAdviceMatched(true);
+    });
   }, []);
 
   function confirmScan() {
@@ -75,6 +89,7 @@ export function ScanScreen() {
         customerPhone: customer.phone,
         customerEmail: customer.email,
         notes: customer.notes,
+        shelfLocation: customer.shelf,
       });
       if (!res.ok && res.code === "VERIFICATION_REQUIRED") {
         // Existing AWAITING_PICKUP package: switch to the handover step.
@@ -84,7 +99,8 @@ export function ScanScreen() {
         setResult(res);
       }
       setPendingScan(null);
-      setCustomer({ name: "", phone: "", email: "", notes: "" });
+      setCustomer({ name: "", phone: "", email: "", notes: "", shelf: "" });
+      setPreAdviceMatched(false);
     });
   }
 
@@ -198,6 +214,12 @@ export function ScanScreen() {
               onChange={setCarrier}
             />
 
+            {preAdviceMatched && (
+              <p className="text-sm text-green-700 dark:text-green-400">
+                Announced by the carrier — details pre-filled from pre-advice.
+              </p>
+            )}
+
             {/* Inbound pickup: the recipient. Outbound: the private sender dropping off. */}
             {(flow === "INBOUND_PICKUP" || flow === "OUTBOUND_HANDOFF") && (
               <div className="grid gap-3 sm:grid-cols-2">
@@ -241,6 +263,17 @@ export function ScanScreen() {
                     onChange={(e) => setCustomer({ ...customer, notes: e.target.value })}
                   />
                 </div>
+                {flow === "INBOUND_PICKUP" && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="shelf-location">Shelf location</Label>
+                    <Input
+                      id="shelf-location"
+                      value={customer.shelf}
+                      onChange={(e) => setCustomer({ ...customer, shelf: e.target.value })}
+                      placeholder="e.g. A3"
+                    />
+                  </div>
+                )}
               </div>
             )}
 
@@ -267,6 +300,8 @@ export function ScanScreen() {
             <HandoverPanel
               carrier={handover.carrier}
               customerName={handover.customerName}
+              trackingNumber={handover.trackingNumber}
+              shelfLocation={handover.shelfLocation}
               isPending={isPending}
               error={handoverError}
               onConfirm={confirmHandover}

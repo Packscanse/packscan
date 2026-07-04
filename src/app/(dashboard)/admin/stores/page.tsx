@@ -1,6 +1,6 @@
 import { getRequiredAdminSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { updateStoreIdleAction } from "@/actions/admin";
+import { updateStoreDeadlineAction, updateStoreIdleAction } from "@/actions/admin";
 import { CreateStoreForm } from "@/components/admin/CreateStoreForm";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +35,7 @@ export default async function AdminStoresPage() {
                 <TableHead>Staff</TableHead>
                 <TableHead>Packages</TableHead>
                 <TableHead>Idle logout</TableHead>
+                <TableHead>Pickup deadline</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -60,6 +61,25 @@ export default async function AdminStoresPage() {
                         {Array.from({ length: 10 }, (_, i) => i + 1).map((min) => (
                           <option key={min} value={min}>
                             {min} min
+                          </option>
+                        ))}
+                      </select>
+                      <SubmitButton pendingText="Saving…">Save</SubmitButton>
+                    </form>
+                  </TableCell>
+                  <TableCell>
+                    <form action={updateStoreDeadlineAction} className="flex items-center gap-2">
+                      <input type="hidden" name="storeId" value={store.id} />
+                      <select
+                        name="pickupDeadlineDays"
+                        key={store.pickupDeadlineDays}
+                        defaultValue={store.pickupDeadlineDays}
+                        aria-label={`Pickup deadline for ${store.name}`}
+                        className="h-8 rounded-md border border-input bg-transparent px-2 text-sm"
+                      >
+                        {[3, 5, 7, 10, 14, 21, 30].map((days) => (
+                          <option key={days} value={days}>
+                            {days} days
                           </option>
                         ))}
                       </select>

@@ -32,6 +32,8 @@ import { HardwareScannerInput } from "./HardwareScannerInput";
 export function HandoverPanel({
   carrier,
   customerName,
+  trackingNumber,
+  shelfLocation,
   isPending,
   error,
   onConfirm,
@@ -39,6 +41,8 @@ export function HandoverPanel({
 }: {
   carrier: CarrierCode;
   customerName: string | null;
+  trackingNumber: string;
+  shelfLocation: string | null;
   isPending: boolean;
   error: string | null;
   onConfirm: (verification: HandoverInput) => void;
@@ -48,18 +52,24 @@ export function HandoverPanel({
   const [presentedCode, setPresentedCode] = useState("");
   const [cameraOn, setCameraOn] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [scanWarning, setScanWarning] = useState<string | null>(null);
   const [idChecked, setIdChecked] = useState(false);
   const [idType, setIdType] = useState<IdType | "">("");
   const [idScanned, setIdScanned] = useState(false);
   const [collectorName, setCollectorName] = useState("");
+  const [override, setOverride] = useState(false);
+  const [overrideReason, setOverrideReason] = useState("");
 
   const codeRequired = policy.code === "required";
   const showCode = policy.code !== "none";
 
-  const satisfied =
+  const policySatisfied =
     (!codeRequired || presentedCode.trim().length > 0) &&
     (policy.idCheck !== "required" || idChecked) &&
     (!idChecked || idType !== "");
+  const satisfied = override
+    ? overrideReason.trim().length >= 3 && (!idChecked || idType !== "")
+    : policySatisfied;
 
   // One pipeline for every scan during handover: an ID document only flips
   // the ID-checked flag (its contents are discarded, never stored); anything
@@ -71,9 +81,16 @@ export function HandoverPanel({
       setIdChecked(true);
       setIdType(scan.idType);
       setIdScanned(true);
+      setScanWarning(null);
+    } else if (scan.code === trackingNumber) {
+      // Habit-scanning the parcel label must never become "evidence".
+      setScanWarning(
+        "That is the parcel's own label — scan the code in the customer's carrier app instead."
+      );
     } else {
       setPresentedCode(scan.code);
       setCameraOn(false);
+      setScanWarning(null);
     }
   }
 
@@ -88,6 +105,12 @@ export function HandoverPanel({
           <p>
             <span className="text-muted-foreground">Addressed to: </span>
             {customerName}
+          </p>
+        )}
+        {shelfLocation && (
+          <p className="text-base font-semibold">
+            <span className="font-normal text-muted-foreground">Shelf: </span>
+            {shelfLocation}
           </p>
         )}
       </div>
@@ -156,6 +179,7 @@ export function HandoverPanel({
               {cameraError && <p className="text-sm text-destructive">{cameraError}</p>}
             </>
           )}
+          {scanWarning && <p className="text-sm text-destructive">{scanWarning}</p>}
         </div>
       )}
 
@@ -209,6 +233,34 @@ export function HandoverPanel({
         </p>
       )}
 
+      {/* Escape hatch for the customer the policy would strand (dead phone,
+          lost code). Loud in the audit trail; reason is mandatory. */}
+      <div className="grid gap-2 rounded-md border border-dashed p-3">
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <input
+            type="checkbox"
+            checked={override}
+            onChange={(e) => setOverride(e.target.checked)}
+            className="size-4 accent-primary"
+          />
+          Manager override — complete without full verification
+        </label>
+        {override && (
+          <div className="grid gap-1">
+            <Input
+              value={overrideReason}
+              onChange={(e) => setOverrideReason(e.target.value)}
+              placeholder="Reason (required, recorded on the audit trail)"
+              aria-label="Override reason"
+            />
+            <p className="text-xs text-muted-foreground">
+              The pickup completes without meeting the carrier&rsquo;s policy. Whatever was
+              verified is still recorded, flagged as an override.
+            </p>
+          </div>
+        )}
+      </div>
+
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <div className="flex gap-2">
@@ -221,6 +273,8 @@ export function HandoverPanel({
               idChecked,
               idType: idChecked && idType !== "" ? idType : undefined,
               collectorName: collectorName.trim() || undefined,
+              override: override || undefined,
+              overrideReason: override ? overrideReason.trim() : undefined,
             })
           }
         >

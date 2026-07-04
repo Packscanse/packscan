@@ -9,6 +9,8 @@ const STATUS_CLASSES: Record<PackageStatus, string> = {
   PICKED_UP: "bg-green-100 text-green-900 dark:bg-green-900/40 dark:text-green-200",
   PENDING_HANDOFF: "bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200",
   HANDED_OFF: "bg-green-100 text-green-900 dark:bg-green-900/40 dark:text-green-200",
+  RETURN_PENDING: "bg-orange-100 text-orange-900 dark:bg-orange-900/40 dark:text-orange-200",
+  RETURNED_TO_CARRIER: "bg-muted text-muted-foreground",
   CANCELLED: "bg-red-100 text-red-900 dark:bg-red-900/40 dark:text-red-200",
 };
 

@@ -13,7 +13,11 @@ export const HandoverInputSchema = z.object({
   idChecked: z.boolean(),
   idType: z.enum(["PASSPORT", "DRIVERS_LICENSE", "NATIONAL_ID", "OTHER"]).optional(),
   collectorName: optionalTrimmed(120),
+  override: z.boolean().optional(),
+  overrideReason: optionalTrimmed(300),
 });
+
+export const CourierRefSchema = optionalTrimmed(80);
 
 export const ScanInputSchema = z.object({
   trackingNumber: z.string().trim().min(6).max(64),
@@ -28,6 +32,7 @@ export const ScanInputSchema = z.object({
     z.email().optional()
   ),
   notes: optionalTrimmed(500),
+  shelfLocation: optionalTrimmed(40),
   // Present when the scan completes a pickup handover (second submit).
   verification: HandoverInputSchema.optional(),
 });

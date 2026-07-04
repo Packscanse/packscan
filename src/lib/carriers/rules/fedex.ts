@@ -1,4 +1,5 @@
 import type { CarrierProvider } from "../types";
+import { notConfigured } from "./not-configured";
 
 // FedEx tracking numbers are purely numeric: 12 (Express), 15 (Ground),
 // or 20 (Ground SSCC-shortened) digits. Letter-prefixed formats (S10, DHL
@@ -19,10 +20,11 @@ export const fedexProvider: CarrierProvider = {
     return null;
   },
 
-  async reportArrival() {
-    // Real implementation: FedEx OnSite event API, once credentials exist.
-    return { status: "NOT_CONFIGURED" as const };
-  },
+  // Real implementations: FedEx OnSite event API, once credentials exist.
+  reportArrival: notConfigured,
+  reportPickedUp: notConfigured,
+  reportAcceptedOutbound: notConfigured,
+  reportReturned: notConfigured,
 
   async lookupTrackingDetails() {
     throw new Error("FEDEX tracking API lookup not implemented (no credentials configured)");

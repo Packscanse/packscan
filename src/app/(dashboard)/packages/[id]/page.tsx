@@ -3,8 +3,12 @@ import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { getRequiredSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { NEXT_STATUS, STATUS_LABELS, canCancel } from "@/lib/status";
-import { advancePackageAction, cancelPackageAction } from "@/actions/packages";
+import { NEXT_STATUS, STATUS_LABELS, canCancel, canMarkForReturn } from "@/lib/status";
+import {
+  advancePackageAction,
+  cancelPackageAction,
+  markForReturnAction,
+} from "@/actions/packages";
 import { PackageStatusBadge } from "@/components/packages/PackageStatusBadge";
 import { HandoverForm } from "@/components/packages/HandoverForm";
 import { CARRIER_LABELS } from "@/lib/carriers";
@@ -84,6 +88,12 @@ export default async function PackageDetailPage({
               {[pkg.customerPhone, pkg.customerEmail].filter(Boolean).join(" · ")}
             </p>
           )}
+          {pkg.shelfLocation && (
+            <p>
+              <span className="text-muted-foreground">Shelf: </span>
+              <span className="font-semibold">{pkg.shelfLocation}</span>
+            </p>
+          )}
           {pkg.notes && (
             <p className="sm:col-span-2">
               <span className="text-muted-foreground">Notes: </span>
@@ -99,14 +109,49 @@ export default async function PackageDetailPage({
           packageId={pkg.id}
           carrier={pkg.carrier}
           customerName={pkg.customerName}
+          trackingNumber={pkg.trackingNumber}
+          shelfLocation={pkg.shelfLocation}
         />
       )}
 
-      {(next === "HANDED_OFF" || pkg.direction === "OUTBOUND" || canCancel(pkg.status)) && (
+      {(next === "HANDED_OFF" ||
+        next === "RETURNED_TO_CARRIER" ||
+        canMarkForReturn(pkg.status) ||
+        pkg.direction === "OUTBOUND" ||
+        canCancel(pkg.status)) && (
         <div className="flex flex-wrap items-end gap-2">
-          {next === "HANDED_OFF" && (
-            <form action={advancePackageAction.bind(null, pkg.id)}>
-              <SubmitButton pendingText="Updating…">Mark handed off</SubmitButton>
+          {(next === "HANDED_OFF" || next === "RETURNED_TO_CARRIER") && (
+            <form
+              action={advancePackageAction.bind(null, pkg.id)}
+              className="flex flex-wrap items-end gap-2"
+            >
+              <Input
+                name="courierRef"
+                maxLength={80}
+                placeholder="Driver / route ref (optional)"
+                aria-label="Courier reference"
+                className="w-56"
+              />
+              <SubmitButton pendingText="Updating…">
+                {next === "HANDED_OFF" ? "Mark handed off" : "Mark returned to carrier"}
+              </SubmitButton>
+            </form>
+          )}
+          {canMarkForReturn(pkg.status) && (
+            <form
+              action={markForReturnAction.bind(null, pkg.id)}
+              className="flex flex-wrap items-end gap-2"
+            >
+              <Input
+                name="reason"
+                maxLength={300}
+                placeholder="Return reason (optional)"
+                aria-label="Return reason"
+                className="w-56"
+              />
+              <SubmitButton variant="secondary" pendingText="Updating…">
+                Mark for return
+              </SubmitButton>
             </form>
           )}
           {pkg.direction === "OUTBOUND" && (
@@ -163,10 +208,18 @@ export default async function PackageDetailPage({
                       `ID checked${event.verification.idType ? ` (${ID_TYPE_LABELS[event.verification.idType]})` : ""}`,
                   ]
                     .filter(Boolean)
-                    .join(" · ")}
+                    .join(" · ") || "nothing"}
                   {event.verification.collectorName &&
                     ` · collected by ${event.verification.collectorName}`}
                 </p>
+              )}
+              {event.verification?.override && (
+                <p className="font-medium text-amber-700 dark:text-amber-500">
+                  MANAGER OVERRIDE — {event.verification.overrideReason}
+                </p>
+              )}
+              {event.courierRef && (
+                <p className="text-muted-foreground">Courier ref: {event.courierRef}</p>
               )}
               {event.note && <p className="text-muted-foreground">Reason: {event.note}</p>}
             </div>

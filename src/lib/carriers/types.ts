@@ -31,13 +31,24 @@ export interface PickupPolicy {
 }
 
 /**
- * Result of reporting an arrival scan to the carrier. REPORTED means the
- * carrier accepted it and will notify the recipient through its own app;
- * NOT_CONFIGURED means no API credentials yet — the caller falls back to
- * direct notification.
+ * Result of reporting a parcel event to the carrier. REPORTED means the
+ * carrier accepted it (and, for arrivals, will notify the recipient through
+ * its own app); NOT_CONFIGURED means no API credentials yet — the caller
+ * falls back to direct notification where one exists.
  */
-export interface ArrivalReport {
+export interface CarrierEventReport {
   status: "REPORTED" | "NOT_CONFIGURED";
+}
+
+/** @deprecated Use CarrierEventReport. */
+export type ArrivalReport = CarrierEventReport;
+
+/** Proof-of-delivery summary pushed with the pickup event. */
+export interface PickupProof {
+  codePresented: boolean;
+  idChecked: boolean;
+  collectorName: string | null;
+  override: boolean;
 }
 
 export interface CarrierProvider {
@@ -47,11 +58,18 @@ export interface CarrierProvider {
   /** Pure pattern matching, no network calls. Null if this carrier's rules don't match. */
   detect(trackingNumber: string): DetectionResult | null;
   /**
-   * Tell the carrier the parcel arrived at this pickup point, so the carrier
-   * notifies the recipient in its own app. Returns NOT_CONFIGURED until API
-   * credentials exist and a real implementation is dropped in.
+   * Parcel lifecycle events pushed to the carrier. All return NOT_CONFIGURED
+   * until API credentials exist and a real implementation is dropped in.
+   * - reportArrival: parcel is at the pickup point → carrier notifies the
+   *   recipient in its own app.
+   * - reportPickedUp: proof-of-delivery with the verification summary.
+   * - reportAcceptedOutbound: parcel accepted from a private sender.
+   * - reportReturned: uncollected parcel handed back to the carrier.
    */
-  reportArrival(trackingNumber: string): Promise<ArrivalReport>;
+  reportArrival(trackingNumber: string): Promise<CarrierEventReport>;
+  reportPickedUp(trackingNumber: string, proof: PickupProof): Promise<CarrierEventReport>;
+  reportAcceptedOutbound(trackingNumber: string): Promise<CarrierEventReport>;
+  reportReturned(trackingNumber: string): Promise<CarrierEventReport>;
   /**
    * Seam for real carrier tracking APIs. Not implemented in v1 — each provider
    * throws until API credentials exist and a real implementation is dropped in.

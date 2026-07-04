@@ -25,12 +25,20 @@ export const INITIAL_STATUS: Record<ScanFlow, PackageStatus> = {
 export const NEXT_STATUS: Partial<Record<PackageStatus, PackageStatus>> = {
   AWAITING_PICKUP: "PICKED_UP",
   PENDING_HANDOFF: "HANDED_OFF",
+  // A parcel marked for return completes when the carrier driver collects it.
+  RETURN_PENDING: "RETURNED_TO_CARRIER",
 };
+
+/** Overdue pickups are pulled out of the rescan flow via this explicit action. */
+export function canMarkForReturn(status: PackageStatus): boolean {
+  return status === "AWAITING_PICKUP";
+}
 
 const TERMINAL: ReadonlySet<PackageStatus> = new Set([
   "LOGGED",
   "PICKED_UP",
   "HANDED_OFF",
+  "RETURNED_TO_CARRIER",
   "CANCELLED",
 ]);
 
@@ -49,6 +57,8 @@ export const STATUS_LABELS: Record<PackageStatus, string> = {
   PICKED_UP: "Picked up",
   PENDING_HANDOFF: "Pending handoff",
   HANDED_OFF: "Handed off",
+  RETURN_PENDING: "Return pending",
+  RETURNED_TO_CARRIER: "Returned to carrier",
   CANCELLED: "Cancelled",
 };
 

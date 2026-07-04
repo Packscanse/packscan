@@ -5,9 +5,13 @@ Unified parcel scanning for stores acting as pickup/drop-off points for **DHL, P
 ## What it does
 
 - **Three workflows**, picked per scan: inbound customer pickup (arrive → carrier/customer notified → verified handover), plain inventory logging, and outbound carrier handoff — including drop-offs from private senders, with sender capture and a printable **drop-off receipt**.
-- **Carrier-policy pickup verification**: completing a pickup is gated on what each carrier mandates at handover — pickup code and/or photo-ID check, proxy-pickup rules (`pickupPolicy` per carrier rule module). Store-only by design: customers authenticate with the **carrier's own app** — the clerk scans the QR/code off their phone screen (hardware scanner, camera, or typed) and the proof (captured code, ID type, collector) is persisted on the audit event. Cancelling requires a reason.
+- **Carrier-policy pickup verification**: completing a pickup is gated on what each carrier mandates at handover — pickup code and/or photo-ID check, proxy-pickup rules (`pickupPolicy` per carrier rule module). Store-only by design: customers authenticate with the **carrier's own app** — the clerk scans the QR/code off their phone screen (hardware scanner, camera, or typed) and the proof (captured code, ID type, collector) is persisted on the audit event. The parcel's own label is rejected as evidence, and a **manager override** (mandatory reason, flagged loudly in the audit trail) unblocks the customer the policy would strand. Cancelling requires a reason.
+- **Shelf locations**: captured at intake, shown big at handover and in the packages list — the clerk knows where the box is before the customer finishes talking.
+- **Returns & aging**: per-store pickup deadline (admin-set, 3-30 days) drives an overdue view on the Packages page; overdue parcels go `RETURN_PENDING → RETURNED_TO_CARRIER` with the driver/route reference recorded. Packages list has search (tracking/name/phone), status/direction/date filters, and pagination.
+- **Pre-advice**: carriers' announced-parcel manifests live in `PreAdvice` (paste-import on the Expected page until API feeds exist). Scanning an announced parcel pre-fills recipient and exact carrier; the Expected page shows announced-but-missing parcels the same day.
 - **ID scan-to-verify**: the handover scanner recognizes ID documents (AAMVA PDF417 driver's licenses, ICAO MRZ passports/ID cards) and flips the ID check automatically — document contents are classified and **discarded, never stored** (`classifyHandoverScan`).
-- **Carrier-first arrival reporting**: registering a pickup parcel calls `CarrierProvider.reportArrival()` so the carrier notifies the recipient in its own app; the direct SMS/email stub is only the fallback while carrier APIs are unconfigured.
+- **Carrier-first event reporting**: the full lifecycle is pushed through `CarrierProvider` seams — `reportArrival` (carrier notifies the recipient in its own app), `reportPickedUp` (proof-of-delivery summary), `reportAcceptedOutbound`, and `reportReturned`. All return `NOT_CONFIGURED` until credentials exist; the direct SMS/email stub is only the arrival fallback.
+- **PII retention**: `npm run purge:pii` (cron it) scrubs customer/sender contact data from terminal packages, their notifications, and consumed pre-advice after 90 days (`PII_RETENTION_DAYS`). Audit history survives.
 - **Carrier auto-detection** from tracking-number format (UPU S10 checksums, carrier prefix rules) with confidence ranking; manual override is always one tap away. Ambiguous formats (e.g. the `3S` prefix shared by PostNL and DHL Parcel Benelux) surface all candidates.
 - **Three scan inputs on one screen**: phone/tablet camera (ZXing), USB/Bluetooth keyboard-wedge scanners (burst-timing discrimination so human typing never misfires), and manual entry.
 - **Multi-store** with ADMIN/CLERK roles. Clerks are hard-scoped to their store server-side; admins manage stores/users (deactivate/reactivate, role changes, password resets — guarded so the last active admin can't be locked out) and see a cross-store overview.
@@ -43,7 +47,7 @@ Log in with the seeded credentials from the seed output. Camera scanning require
 
 ```bash
 npm run test:detect   # carrier detection, pickup policies, ID-scan classification (offline, 28 checks)
-npm run test:scan     # scan workflows + handover gating against the DB (25 checks, cleans up after itself)
+npm run test:scan     # scan workflows, handover gating, overrides, returns, pre-advice (35 checks, cleans up after itself)
 npm run test:users    # user lifecycle rules + lockout guards against the DB (11 checks, cleans up after itself)
 ```
 

@@ -2,9 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { getRequiredSession } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
 import { registerScan, type HandoverContext } from "@/lib/packages";
+import { normalizeTrackingNumber } from "@/lib/carriers";
 import { ScanInputSchema } from "@/lib/validation/scan";
-import type { PackageStatus } from "@prisma/client";
+import type { Carrier, PackageStatus } from "@prisma/client";
 
 // Serializable result for the client component (no Date objects / full models).
 export type ProcessScanResult =
@@ -58,5 +60,40 @@ export async function processScan(input: unknown): Promise<ProcessScanResult> {
     status: outcome.package.status,
     fromStatus: outcome.kind === "transitioned" ? outcome.fromStatus : undefined,
     direction: outcome.package.direction,
+  };
+}
+
+export interface PreAdviceMatch {
+  carrier: Carrier;
+  customerName: string | null;
+  customerPhone: string | null;
+  customerEmail: string | null;
+}
+
+/**
+ * Pre-advice match for a just-scanned tracking number: exact carrier
+ * attribution and pre-filled recipient details, no typing at intake.
+ */
+export async function lookupPreAdvice(rawTrackingNumber: string): Promise<PreAdviceMatch | null> {
+  const session = await getRequiredSession();
+  const trackingNumber = normalizeTrackingNumber(rawTrackingNumber);
+  if (trackingNumber.length < 6) return null;
+
+  const advice = await prisma.preAdvice.findUnique({
+    where: { storeId_trackingNumber: { storeId: session.user.storeId, trackingNumber } },
+    select: {
+      status: true,
+      carrier: true,
+      customerName: true,
+      customerPhone: true,
+      customerEmail: true,
+    },
+  });
+  if (!advice || advice.status !== "ANNOUNCED") return null;
+  return {
+    carrier: advice.carrier,
+    customerName: advice.customerName,
+    customerPhone: advice.customerPhone,
+    customerEmail: advice.customerEmail,
   };
 }

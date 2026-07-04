@@ -35,7 +35,14 @@ enum PackageStatus {
   PICKED_UP
   PENDING_HANDOFF
   HANDED_OFF
+  RETURN_PENDING
+  RETURNED_TO_CARRIER
   CANCELLED
+}
+
+enum PreAdviceStatus {
+  ANNOUNCED
+  RECEIVED
 }
 
 enum ScanInputMethod {
@@ -77,12 +84,15 @@ model Store {
   address   String?
   // Staff auto-logout after this many minutes of inactivity (1-10).
   sessionIdleMinutes Int @default(10)
+  // Days a parcel may await pickup before it counts as overdue for return.
+  pickupDeadlineDays Int @default(7)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   users      User[]
   packages   Package[]
   scanEvents ScanEvent[]
+  preAdvices PreAdvice[]
 }
 
 model User {
@@ -116,12 +126,15 @@ model Package {
   customerPhone String?
   customerEmail String?
   notes         String?
+  // Where the parcel physically sits in the store, e.g. "A3".
+  shelfLocation String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   scanEvents    ScanEvent[]
   notifications Notification[]
+  preAdvice     PreAdvice?
 
   @@unique([storeId, trackingNumber, direction])
   @@index([storeId, status])
@@ -146,6 +159,9 @@ model ScanEvent {
   scannedAt   DateTime        @default(now())
   // Free-text context for the transition — e.g. the required cancel reason.
   note        String?
+  // Driver / route / manifest reference for carrier collections
+  // (HANDED_OFF, RETURNED_TO_CARRIER): who the parcel was given to.
+  courierRef  String?
 
   verification HandoverVerification?
 
@@ -167,7 +183,33 @@ model HandoverVerification {
   idType        IdType?
   // Set when someone other than the addressee collects (proxy pickup).
   collectorName String?
+  // Manager override: handover completed without meeting the carrier policy.
+  // Always paired with a reason; stands out in the audit trail by design.
+  override       Boolean @default(false)
+  overrideReason String?
   createdAt     DateTime @default(now())
+}
+
+// What a carrier announced as inbound for a store (the pre-advice/manifest).
+// Matched by tracking number at intake: exact carrier attribution, pre-filled
+// recipient details, and same-day detection of announced-but-missing parcels.
+model PreAdvice {
+  id             String          @id @default(cuid())
+  storeId        String
+  store          Store           @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  carrier        Carrier
+  trackingNumber String
+  customerName   String?
+  customerPhone  String?
+  customerEmail  String?
+  status         PreAdviceStatus @default(ANNOUNCED)
+  announcedAt    DateTime        @default(now())
+  receivedAt     DateTime?
+  packageId      String?         @unique
+  package        Package?        @relation(fields: [packageId], references: [id], onDelete: SetNull)
+
+  @@unique([storeId, trackingNumber])
+  @@index([storeId, status])
 }
 
 model Notification {

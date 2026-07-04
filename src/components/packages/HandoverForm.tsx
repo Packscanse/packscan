@@ -12,10 +12,14 @@ export function HandoverForm({
   packageId,
   carrier,
   customerName,
+  trackingNumber,
+  shelfLocation,
 }: {
   packageId: string;
   carrier: Carrier;
   customerName: string | null;
+  trackingNumber: string;
+  shelfLocation: string | null;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -36,6 +40,8 @@ export function HandoverForm({
         <HandoverPanel
           carrier={carrier}
           customerName={customerName}
+          trackingNumber={trackingNumber}
+          shelfLocation={shelfLocation}
           isPending={isPending}
           error={error}
           onConfirm={confirm}

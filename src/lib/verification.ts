@@ -8,6 +8,9 @@ export interface HandoverInput {
   idChecked: boolean;
   idType?: IdType;
   collectorName?: string;
+  /** Manager override: complete despite unmet policy. Reason is mandatory. */
+  override?: boolean;
+  overrideReason?: string;
 }
 
 /** Fields persisted on the PICKED_UP scan event's HandoverVerification. */
@@ -16,6 +19,8 @@ export interface HandoverRecord {
   idChecked: boolean;
   idType: IdType | null;
   collectorName: string | null;
+  override: boolean;
+  overrideReason: string | null;
 }
 
 export const ID_TYPES: IdType[] = ["PASSPORT", "DRIVERS_LICENSE", "NATIONAL_ID", "OTHER"];
@@ -68,9 +73,37 @@ export const ID_TYPE_LABELS: Record<IdType, string> = {
  */
 export function checkHandover(
   policy: PickupPolicy,
-  input: HandoverInput
+  input: HandoverInput,
+  pkg: { trackingNumber: string }
 ): { ok: true; record: HandoverRecord } | { ok: false; error: string } {
   const presentedCode = input.presentedCode?.trim() || null;
+  const collectorName = input.collectorName?.trim() || null;
+  const overrideReason = input.overrideReason?.trim() || null;
+
+  // A clerk habit-scanning the parcel label must never pass as evidence.
+  if (presentedCode && presentedCode === pkg.trackingNumber) {
+    return {
+      ok: false,
+      error:
+        "That is the parcel's own label — scan the code in the customer's carrier app instead.",
+    };
+  }
+
+  const base = {
+    presentedCode,
+    idChecked: input.idChecked,
+    idType: input.idChecked ? (input.idType ?? null) : null,
+    collectorName,
+  };
+
+  // Manager override: skips the policy gate but never the audit trail — the
+  // record keeps whatever WAS verified, flagged loudly with the reason.
+  if (input.override) {
+    if (!overrideReason || overrideReason.length < 3) {
+      return { ok: false, error: "A manager override requires a reason." };
+    }
+    return { ok: true, record: { ...base, override: true, overrideReason } };
+  }
 
   if (policy.code === "required" && !presentedCode) {
     return {
@@ -86,7 +119,6 @@ export function checkHandover(
     return { ok: false, error: "Select which type of ID was checked." };
   }
 
-  const collectorName = input.collectorName?.trim() || null;
   if (collectorName && !policy.proxyAllowed) {
     return {
       ok: false,
@@ -94,13 +126,5 @@ export function checkHandover(
     };
   }
 
-  return {
-    ok: true,
-    record: {
-      presentedCode,
-      idChecked: input.idChecked,
-      idType: input.idChecked ? (input.idType ?? null) : null,
-      collectorName,
-    },
-  };
+  return { ok: true, record: { ...base, override: false, overrideReason: null } };
 }

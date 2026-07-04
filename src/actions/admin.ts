@@ -12,6 +12,7 @@ import {
   ResetPasswordSchema,
   SetUserActiveSchema,
   SetUserRoleSchema,
+  UpdateStoreDeadlineSchema,
   UpdateStoreIdleSchema,
 } from "@/lib/validation/admin";
 
@@ -64,6 +65,21 @@ export async function updateStoreIdleAction(formData: FormData): Promise<void> {
   await prisma.store.update({
     where: { id: parsed.data.storeId },
     data: { sessionIdleMinutes: parsed.data.sessionIdleMinutes },
+  });
+  revalidatePath("/admin/stores");
+}
+
+/** Days a parcel may await pickup before the Packages page flags it overdue. */
+export async function updateStoreDeadlineAction(formData: FormData): Promise<void> {
+  const forbidden = await requireAdmin();
+  if (forbidden) return;
+
+  const parsed = UpdateStoreDeadlineSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return;
+
+  await prisma.store.update({
+    where: { id: parsed.data.storeId },
+    data: { pickupDeadlineDays: parsed.data.pickupDeadlineDays },
   });
   revalidatePath("/admin/stores");
 }

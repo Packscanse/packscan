@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getRequiredSession } from "@/lib/session";
-import { advanceStatus, cancelPackage } from "@/lib/packages";
-import { CancelReasonSchema, HandoverInputSchema } from "@/lib/validation/scan";
+import { advanceStatus, cancelPackage, markForReturn } from "@/lib/packages";
+import { CancelReasonSchema, CourierRefSchema, HandoverInputSchema } from "@/lib/validation/scan";
 
 // Loads the package and enforces store scoping: clerks only touch their own
 // store's packages; admins may act on any (e.g. from the admin overview).
@@ -19,15 +19,41 @@ async function loadScopedPackage(packageId: string) {
 
 export type PackageActionResult = { ok: true } | { ok: false; error: string };
 
-/** Non-pickup advance (e.g. handoff completion) — no verification involved. */
-export async function advancePackageAction(packageId: string): Promise<void> {
+/**
+ * Non-pickup advance (handoff or return completion) — no verification
+ * involved, but the driver/route reference is recorded when given.
+ */
+export async function advancePackageAction(
+  packageId: string,
+  formData: FormData
+): Promise<void> {
   const { session, pkg } = await loadScopedPackage(packageId);
   if (!pkg) return;
+  const courierRef = CourierRefSchema.safeParse(formData.get("courierRef") ?? undefined);
   await advanceStatus({
     pkg,
     storeId: pkg.storeId, // events stay attached to the package's store
     userId: session.user.id,
     inputMethod: "STATUS_ACTION",
+    courierRef: courierRef.success ? courierRef.data : undefined,
+  });
+  revalidatePath("/packages");
+  revalidatePath(`/packages/${packageId}`);
+}
+
+/** Overdue/refused pickup → RETURN_PENDING, with an optional reason. */
+export async function markForReturnAction(
+  packageId: string,
+  formData: FormData
+): Promise<void> {
+  const { session, pkg } = await loadScopedPackage(packageId);
+  if (!pkg) return;
+  const reason = formData.get("reason");
+  await markForReturn({
+    pkg,
+    storeId: pkg.storeId,
+    userId: session.user.id,
+    reason: typeof reason === "string" ? reason : undefined,
   });
   revalidatePath("/packages");
   revalidatePath(`/packages/${packageId}`);

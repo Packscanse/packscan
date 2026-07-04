@@ -29,6 +29,7 @@ export function PackageTable({ packages }: { packages: Package[] }) {
           <TableHead>Carrier</TableHead>
           <TableHead>Direction</TableHead>
           <TableHead>Status</TableHead>
+          <TableHead>Shelf</TableHead>
           <TableHead className="hidden sm:table-cell">Customer</TableHead>
           <TableHead className="hidden sm:table-cell">Updated</TableHead>
         </TableRow>
@@ -46,6 +47,7 @@ export function PackageTable({ packages }: { packages: Package[] }) {
             <TableCell>
               <PackageStatusBadge status={pkg.status} />
             </TableCell>
+            <TableCell className="font-semibold">{pkg.shelfLocation ?? "—"}</TableCell>
             <TableCell className="hidden sm:table-cell">{pkg.customerName ?? "—"}</TableCell>
             <TableCell className="hidden text-muted-foreground sm:table-cell">
               {format(pkg.updatedAt, "MMM d, HH:mm")}

@@ -23,6 +23,7 @@ export interface HandoverContext {
   trackingNumber: string;
   carrier: Carrier;
   customerName: string | null;
+  shelfLocation: string | null;
 }
 
 export type ScanOutcome =
@@ -47,6 +48,7 @@ export interface RegisterScanArgs {
   customerPhone?: string;
   customerEmail?: string;
   notes?: string;
+  shelfLocation?: string;
   /** Handover proof; consulted only when the scan completes a pickup. */
   verification?: HandoverInput;
 }
@@ -96,6 +98,7 @@ export async function registerScan(args: RegisterScanArgs): Promise<ScanOutcome>
           customerPhone: args.customerPhone,
           customerEmail: args.customerEmail,
           notes: args.notes,
+          shelfLocation: args.shelfLocation,
         },
       });
       await tx.scanEvent.create({
@@ -108,14 +111,26 @@ export async function registerScan(args: RegisterScanArgs): Promise<ScanOutcome>
           inputMethod: args.inputMethod,
         },
       });
+      // Announced parcel arrived: close the pre-advice and link it.
+      if (direction === "INBOUND") {
+        await tx.preAdvice.updateMany({
+          where: { storeId: args.storeId, trackingNumber, status: "ANNOUNCED" },
+          data: { status: "RECEIVED", receivedAt: new Date(), packageId: created.id },
+        });
+      }
       return created;
     });
     if (status === "AWAITING_PICKUP") {
       // Carrier-first: report the arrival so the carrier notifies the
       // recipient in its own app. Only fall back to messaging the customer
       // directly while no carrier API is configured.
-      const reported = await reportArrivalToCarrier(pkg);
+      const reported = await reportCarrierEvent(pkg, (p) =>
+        p.reportArrival(pkg.trackingNumber)
+      );
       if (!reported) await notifyCustomer(pkg, "AWAITING_PICKUP");
+    }
+    if (direction === "OUTBOUND") {
+      await reportCarrierEvent(pkg, (p) => p.reportAcceptedOutbound(pkg.trackingNumber));
     }
     return { ok: true, kind: "created", package: pkg };
   }
@@ -141,6 +156,8 @@ export async function advanceStatus(args: {
   userId: string;
   inputMethod: ScanInputMethod;
   verification?: HandoverInput;
+  /** Driver/route/manifest reference for carrier collections. */
+  courierRef?: string;
 }): Promise<ScanOutcome> {
   const { pkg } = args;
   const next = NEXT_STATUS[pkg.status];
@@ -164,18 +181,60 @@ export async function advanceStatus(args: {
           trackingNumber: pkg.trackingNumber,
           carrier: pkg.carrier,
           customerName: pkg.customerName,
+          shelfLocation: pkg.shelfLocation,
         },
       };
     }
-    const checked = checkHandover(getPickupPolicy(pkg.carrier), args.verification);
+    const checked = checkHandover(getPickupPolicy(pkg.carrier), args.verification, pkg);
     if (!checked.ok) {
       return { ok: false, code: "VERIFICATION_FAILED", error: checked.error };
     }
     handoverRecord = checked.record;
   }
 
-  const updated = await transition({ ...args, verification: handoverRecord }, next);
-  if (next === "PICKED_UP") await notifyCustomer(updated, "PICKED_UP");
+  const updated = await transition(
+    { ...args, verification: handoverRecord, courierRef: args.courierRef?.trim() || undefined },
+    next
+  );
+  if (next === "PICKED_UP") {
+    const reported = await reportCarrierEvent(updated, (p) =>
+      p.reportPickedUp(updated.trackingNumber, {
+        codePresented: handoverRecord!.presentedCode !== null,
+        idChecked: handoverRecord!.idChecked,
+        collectorName: handoverRecord!.collectorName,
+        override: handoverRecord!.override,
+      })
+    );
+    if (!reported) await notifyCustomer(updated, "PICKED_UP");
+  }
+  if (next === "RETURNED_TO_CARRIER") {
+    await reportCarrierEvent(updated, (p) => p.reportReturned(updated.trackingNumber));
+  }
+  return { ok: true, kind: "transitioned", package: updated, fromStatus: pkg.status };
+}
+
+/**
+ * Pull an overdue (or refused) pickup out of the rescan flow: the parcel
+ * waits for the carrier driver, and the next scan records the return.
+ */
+export async function markForReturn(args: {
+  pkg: Package;
+  storeId: string;
+  userId: string;
+  reason?: string;
+}): Promise<ScanOutcome> {
+  const { pkg } = args;
+  if (pkg.status !== "AWAITING_PICKUP") {
+    return {
+      ok: false,
+      code: "INVALID_ACTION",
+      error: `Only parcels awaiting pickup can be marked for return (this one is "${STATUS_LABELS[pkg.status]}").`,
+    };
+  }
+  const updated = await transition(
+    { ...args, inputMethod: "STATUS_ACTION", note: args.reason?.trim() || undefined },
+    "RETURN_PENDING"
+  );
   return { ok: true, kind: "transitioned", package: updated, fromStatus: pkg.status };
 }
 
@@ -216,6 +275,7 @@ async function transition(
     userId: string;
     inputMethod: ScanInputMethod;
     note?: string;
+    courierRef?: string;
     verification?: HandoverRecord;
   },
   toStatus: PackageStatus
@@ -234,6 +294,7 @@ async function transition(
         toStatus,
         inputMethod: args.inputMethod,
         note: args.note,
+        courierRef: args.courierRef,
         ...(args.verification && { verification: { create: args.verification } }),
       },
     });
@@ -241,12 +302,15 @@ async function transition(
   });
 }
 
-/** True only when the carrier accepted the arrival event. Never fatal to the scan. */
-async function reportArrivalToCarrier(pkg: Package): Promise<boolean> {
+/** True only when the carrier accepted the event. Never fatal to the scan. */
+async function reportCarrierEvent(
+  pkg: Package,
+  send: (provider: (typeof CARRIER_PROVIDERS)[number]) => Promise<{ status: string }>
+): Promise<boolean> {
   const provider = CARRIER_PROVIDERS.find((p) => p.code === pkg.carrier);
   if (!provider) return false; // UNKNOWN carrier: nothing to report to
   try {
-    const report = await provider.reportArrival(pkg.trackingNumber);
+    const report = await send(provider);
     return report.status === "REPORTED";
   } catch {
     return false;

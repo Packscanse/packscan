@@ -1,4 +1,5 @@
 import type { CarrierProvider } from "../types";
+import { notConfigured } from "./not-configured";
 
 // DHL has no unified checksum standard across Express/Parcel/eCommerce —
 // these are prefix + length heuristics, individually confidence-scored.
@@ -31,10 +32,11 @@ export const dhlProvider: CarrierProvider = {
     return null;
   },
 
-  async reportArrival() {
-    // Real implementation: DHL ServicePoint event API, once credentials exist.
-    return { status: "NOT_CONFIGURED" as const };
-  },
+  // Real implementations: DHL ServicePoint event API, once credentials exist.
+  reportArrival: notConfigured,
+  reportPickedUp: notConfigured,
+  reportAcceptedOutbound: notConfigured,
+  reportReturned: notConfigured,
 
   async lookupTrackingDetails() {
     throw new Error("DHL tracking API lookup not implemented (no credentials configured)");

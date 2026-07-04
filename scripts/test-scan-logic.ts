@@ -3,7 +3,7 @@
  * against the real database. Run: npx tsx scripts/test-scan-logic.ts
  */
 import { prisma } from "../src/lib/prisma";
-import { registerScan, cancelPackage } from "../src/lib/packages";
+import { advanceStatus, cancelPackage, markForReturn, registerScan } from "../src/lib/packages";
 
 const TEST_PREFIX = "PKSTEST";
 let failures = 0;
@@ -17,6 +17,9 @@ function check(label: string, ok: boolean, detail = "") {
 // before their packages can go.
 async function deleteTestData(storeId: string) {
   const where = { storeId, package: { trackingNumber: { startsWith: TEST_PREFIX } } };
+  await prisma.preAdvice.deleteMany({
+    where: { storeId, trackingNumber: { startsWith: TEST_PREFIX } },
+  });
   await prisma.scanEvent.deleteMany({ where });
   await prisma.package.deleteMany({
     where: { storeId, trackingNumber: { startsWith: TEST_PREFIX } },
@@ -51,8 +54,18 @@ async function main() {
     flow: "INBOUND_PICKUP",
     customerName: "Test Customer",
     customerPhone: "+46701234567",
+    shelfLocation: "A3",
   });
   check("pickup: arrival creates AWAITING_PICKUP", pick1.ok && pick1.kind === "created" && pick1.package.status === "AWAITING_PICKUP");
+  check("pickup: shelf location stored", pick1.ok && pick1.package.shelfLocation === "A3");
+
+  const labelRescan = await registerScan({
+    ...base,
+    trackingNumber: `${TEST_PREFIX}PICK1`,
+    flow: "INBOUND_PICKUP",
+    verification: { presentedCode: `${TEST_PREFIX}PICK1`, idChecked: true, idType: "PASSPORT" },
+  });
+  check("pickup: parcel's own label rejected as evidence", !labelRescan.ok && labelRescan.code === "VERIFICATION_FAILED");
 
   const noVerify = await registerScan({ ...base, trackingNumber: `${TEST_PREFIX}PICK1`, flow: "INBOUND_PICKUP" });
   check(
@@ -114,6 +127,75 @@ async function main() {
       notifications.map((n) => `${n.trigger}:${n.status}`).join(", ")
     );
   }
+
+  // --- Manager override: stranded customer, mandatory reason ---
+  const ovr1 = await registerScan({ ...base, trackingNumber: `${TEST_PREFIX}OVR01`, flow: "INBOUND_PICKUP" });
+  const ovrNoReason = await registerScan({
+    ...base,
+    trackingNumber: `${TEST_PREFIX}OVR01`,
+    flow: "INBOUND_PICKUP",
+    verification: { idChecked: false, override: true },
+  });
+  check("override: blocked without a reason", !ovrNoReason.ok && ovrNoReason.code === "VERIFICATION_FAILED");
+  const ovr2 = await registerScan({
+    ...base,
+    trackingNumber: `${TEST_PREFIX}OVR01`,
+    flow: "INBOUND_PICKUP",
+    verification: { idChecked: false, override: true, overrideReason: "Phone dead, known regular customer" },
+  });
+  check("override: completes the pickup with a reason", ovr2.ok && ovr2.package.status === "PICKED_UP");
+  if (ovr1.ok) {
+    const ovrRecord = await prisma.handoverVerification.findFirst({
+      where: { scanEvent: { packageId: ovr1.package.id } },
+    });
+    check(
+      "override: flagged on the audit record with the reason",
+      ovrRecord?.override === true && ovrRecord.overrideReason === "Phone dead, known regular customer"
+    );
+  }
+
+  // --- Returns: overdue pickup goes back to the carrier ---
+  const ret1 = await registerScan({ ...base, trackingNumber: `${TEST_PREFIX}RET01`, flow: "INBOUND_PICKUP" });
+  if (ret1.ok) {
+    const marked = await markForReturn({ pkg: ret1.package, ...ctx, reason: "Deadline passed" });
+    check("return: AWAITING_PICKUP marked RETURN_PENDING", marked.ok && marked.package.status === "RETURN_PENDING");
+    const returned = marked.ok
+      ? await advanceStatus({
+          pkg: marked.package,
+          ...ctx,
+          inputMethod: "STATUS_ACTION",
+          courierRef: "ROUTE-42 / driver 117",
+        })
+      : marked;
+    check("return: driver collection completes RETURNED_TO_CARRIER", returned.ok && returned.package.status === "RETURNED_TO_CARRIER");
+    const returnEvent = await prisma.scanEvent.findFirst({
+      where: { packageId: ret1.package.id, toStatus: "RETURNED_TO_CARRIER" },
+    });
+    check("return: courier reference recorded", returnEvent?.courierRef === "ROUTE-42 / driver 117");
+    const again = returned.ok
+      ? await markForReturn({ pkg: returned.package, ...ctx })
+      : returned;
+    check("return: terminal package cannot be marked again", !again.ok);
+  }
+
+  // --- Pre-advice: announced parcel links and closes at intake ---
+  await prisma.preAdvice.create({
+    data: {
+      storeId: store.id,
+      carrier: "POSTNORD",
+      trackingNumber: `${TEST_PREFIX}PA01`,
+      customerName: "Announced Customer",
+      customerPhone: "+46707777777",
+    },
+  });
+  const pa1 = await registerScan({ ...base, trackingNumber: `${TEST_PREFIX}PA01`, flow: "INBOUND_PICKUP", customerName: "Announced Customer" });
+  const advice = await prisma.preAdvice.findUnique({
+    where: { storeId_trackingNumber: { storeId: store.id, trackingNumber: `${TEST_PREFIX}PA01` } },
+  });
+  check(
+    "pre-advice: intake marks it RECEIVED and links the package",
+    pa1.ok && advice?.status === "RECEIVED" && advice.packageId === (pa1.ok ? pa1.package.id : null)
+  );
 
   // --- FedEx pickup: ID-only policy, no proxy pickup ---
   const fed1 = await registerScan({
@@ -184,7 +266,7 @@ async function main() {
   const events = await prisma.scanEvent.count({
     where: { storeId: store.id, package: { trackingNumber: { startsWith: TEST_PREFIX } } },
   });
-  check("audit: expected 10 scan events recorded", events === 10, `got ${events}`);
+  check("audit: expected 16 scan events recorded", events === 16, `got ${events}`);
 
   // Audit rows survive package deletion attempts (Restrict, not Cascade)
   if (log1.ok) {

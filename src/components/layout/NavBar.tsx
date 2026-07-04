@@ -27,6 +27,9 @@ export function NavBar({
           <Button asChild variant="ghost" size="sm">
             <Link href="/packages">Packages</Link>
           </Button>
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/expected">Expected</Link>
+          </Button>
           <RoleGate role="ADMIN">
             <Button asChild variant="ghost" size="sm">
               <Link href="/admin">Admin</Link>

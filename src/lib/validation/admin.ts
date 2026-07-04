@@ -20,6 +20,20 @@ export const UpdateStoreIdleSchema = z.object({
   sessionIdleMinutes: z.coerce.number().int().min(1).max(10),
 });
 
+export const UpdateStoreDeadlineSchema = z.object({
+  storeId: z.string().min(1),
+  pickupDeadlineDays: z.coerce.number().int().min(1).max(30),
+});
+
+/** One pre-advice line: TRACKING,CARRIER[,NAME][,PHONE][,EMAIL] */
+export const PreAdviceLineSchema = z.object({
+  trackingNumber: z.string().trim().min(6).max(64).transform((v) => v.toUpperCase().replace(/\s+/g, "")),
+  carrier: z.enum(["DHL", "POSTNORD", "POSTNL", "FEDEX", "UNKNOWN"]),
+  customerName: z.string().trim().max(120).optional(),
+  customerPhone: z.string().trim().max(32).optional(),
+  customerEmail: z.string().trim().max(254).optional(),
+});
+
 export const CreateUserSchema = z.object({
   email: z.email().transform((v) => v.toLowerCase()),
   name: z.string().trim().min(2).max(120),
