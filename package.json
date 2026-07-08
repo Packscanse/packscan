@@ -10,7 +10,8 @@
     "test:detect": "tsx scripts/test-detect.ts",
     "test:scan": "tsx --env-file=.env scripts/test-scan-logic.ts",
     "test:users": "tsx --env-file=.env scripts/test-user-admin.ts",
-    "purge:pii": "tsx --env-file=.env scripts/purge-pii.ts"
+    "purge:pii": "tsx --env-file=.env scripts/purge-pii.ts",
+    "dispatch:events": "tsx --env-file=.env scripts/dispatch-events.ts"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",

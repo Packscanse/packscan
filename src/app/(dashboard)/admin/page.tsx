@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function AdminOverviewPage() {
   await getRequiredAdminSession();
-  const [stores, statusCounts, recentEvents] = await Promise.all([
+  const [stores, statusCounts, recentEvents, recentOverrides] = await Promise.all([
     prisma.store.findMany({
       orderBy: { name: "asc" },
       include: { _count: { select: { users: true, packages: true } } },
@@ -28,6 +28,20 @@ export default async function AdminOverviewPage() {
         package: { select: { trackingNumber: true, id: true } },
         store: { select: { code: true } },
         user: { select: { name: true } },
+      },
+    }),
+    prisma.handoverVerification.findMany({
+      where: { override: true },
+      orderBy: { createdAt: "desc" },
+      take: 15,
+      include: {
+        scanEvent: {
+          include: {
+            package: { select: { trackingNumber: true, id: true } },
+            store: { select: { code: true } },
+            user: { select: { name: true } },
+          },
+        },
       },
     }),
   ]);
@@ -68,6 +82,36 @@ export default async function AdminOverviewPage() {
               ))}
             </TableBody>
           </Table>
+        </CardContent>
+      </Card>
+
+      {/* Overrides skip the carrier's verification policy — every one of
+          them deserves a manager's glance. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">
+            Manager overrides (all stores{recentOverrides.length > 0 ? `, last ${recentOverrides.length}` : ""})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-2 text-sm">
+          {recentOverrides.length === 0 && (
+            <p className="text-muted-foreground">No overrides recorded.</p>
+          )}
+          {recentOverrides.map((v) => (
+            <p key={v.id}>
+              <span className="text-muted-foreground">
+                {format(v.createdAt, "MMM d, HH:mm")} · {v.scanEvent.store.code} ·{" "}
+              </span>
+              <Link
+                href={`/packages/${v.scanEvent.package.id}`}
+                className="font-mono underline-offset-2 hover:underline"
+              >
+                {v.scanEvent.package.trackingNumber}
+              </Link>
+              <span className="text-muted-foreground"> by {v.scanEvent.user.name} — </span>
+              {v.overrideReason}
+            </p>
+          ))}
         </CardContent>
       </Card>
 

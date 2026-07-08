@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: packscan
+          POSTGRES_PASSWORD: packscan
+          POSTGRES_DB: packscan
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U packscan"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://packscan:packscan@localhost:5432/packscan
+      AUTH_SECRET: ci-only-secret-not-used-in-tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx eslint src scripts
+      - run: npx prisma migrate deploy
+      - run: npx prisma db seed
+      - run: npm run test:detect
+      # DB-backed suites read .env via tsx --env-file; provide one from CI env.
+      - run: printf 'DATABASE_URL=%s\n' "$DATABASE_URL" > .env
+      - run: npm run test:scan
+      - run: npm run test:users

@@ -8,10 +8,15 @@ import {
   type CarrierCode,
   type DetectionResult,
 } from "@/lib/carriers";
-import { FLOW_LABELS, type ScanFlow } from "@/lib/status";
+import { FLOW_DIRECTION, FLOW_LABELS, type ScanFlow } from "@/lib/status";
 import type { HandoverInput } from "@/lib/verification";
 import type { HandoverContext } from "@/lib/packages";
-import { lookupPreAdvice, processScan, type ProcessScanResult } from "@/actions/scan";
+import {
+  lookupPreAdvice,
+  processScan,
+  type PreAdviceMatch,
+  type ProcessScanResult,
+} from "@/actions/scan";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +27,7 @@ import { FlowPicker } from "./FlowPicker";
 import { CarrierBadge } from "./CarrierBadge";
 import { HandoverPanel } from "./HandoverPanel";
 import { ScanResultCard } from "./ScanResultCard";
+import { useOfflineScanQueue } from "./useOfflineScanQueue";
 
 interface PendingScan {
   code: string;
@@ -31,7 +37,7 @@ interface PendingScan {
 
 const SAME_CODE_DEBOUNCE_MS = 2000;
 
-export function ScanScreen() {
+export function ScanScreen({ canOverride }: { canOverride: boolean }) {
   const [flow, setFlow] = useState<ScanFlow>("INBOUND_PICKUP");
   const [pendingScan, setPendingScan] = useState<PendingScan | null>(null);
   const [carrier, setCarrier] = useState<CarrierCode>("UNKNOWN");
@@ -44,8 +50,69 @@ export function ScanScreen() {
   // Set when the server demands handover verification to complete a pickup.
   const [handover, setHandover] = useState<(HandoverContext & { inputMethod: ScanInputMethod }) | null>(null);
   const [handoverError, setHandoverError] = useState<string | null>(null);
+  // Rapid intake: auto-confirm announced / high-confidence parcels with a
+  // sticky batch shelf — for the morning delivery, not the counter chat.
+  const [rapid, setRapid] = useState(false);
+  const [rapidShelf, setRapidShelf] = useState("");
   const [isPending, startTransition] = useTransition();
   const lastDetection = useRef({ code: "", at: 0 });
+  const { queuedCount, syncNotices, enqueue, dismissNotices } = useOfflineScanQueue();
+
+  // handleCode is mount-stable; these refs feed it the current settings.
+  const flowRef = useRef(flow);
+  flowRef.current = flow;
+  const rapidRef = useRef(rapid);
+  rapidRef.current = rapid;
+  const rapidShelfRef = useRef(rapidShelf);
+  rapidShelfRef.current = rapidShelf;
+
+  const rapidEligible = FLOW_DIRECTION[flow] === "INBOUND";
+
+  /** Network failure ⇒ queue for background sync instead of losing the scan. */
+  async function submitScan(
+    input: Record<string, unknown> & { trackingNumber: string }
+  ): Promise<ProcessScanResult | { queued: true }> {
+    try {
+      return await processScan(input);
+    } catch {
+      enqueue(input, input.trackingNumber);
+      return { queued: true };
+    }
+  }
+
+  function autoConfirm(args: {
+    code: string;
+    method: ScanInputMethod;
+    carrier: CarrierCode;
+    match: PreAdviceMatch | null;
+  }) {
+    startTransition(async () => {
+      const res = await submitScan({
+        trackingNumber: args.code,
+        flow: flowRef.current,
+        carrier: args.carrier,
+        carrierManual: false,
+        inputMethod: args.method,
+        customerName: args.match?.customerName ?? "",
+        customerPhone: args.match?.customerPhone ?? "",
+        customerEmail: args.match?.customerEmail ?? "",
+        shelfLocation: rapidShelfRef.current,
+      });
+      setPendingScan(null);
+      setCustomer({ name: "", phone: "", email: "", notes: "", shelf: "" });
+      setPreAdviceMatched(false);
+      if ("queued" in res) {
+        setResult(null);
+        return;
+      }
+      if (!res.ok && res.code === "VERIFICATION_REQUIRED") {
+        setHandover({ ...res.handover, inputMethod: args.method });
+        setHandoverError(null);
+        return;
+      }
+      setResult(res);
+    });
+  }
 
   // Single pipeline for all three input methods.
   const handleCode = useCallback((raw: string, method: ScanInputMethod) => {
@@ -62,24 +129,41 @@ export function ScanScreen() {
     setResult(null);
     setPreAdviceMatched(false);
     // Announced parcel? Exact carrier + pre-filled recipient, no typing.
-    void lookupPreAdvice(code).then((match) => {
-      if (!match || lastDetection.current.code !== code) return;
-      setCarrier(match.carrier);
-      setCustomer((prev) => ({
-        ...prev,
-        name: match.customerName ?? prev.name,
-        phone: match.customerPhone ?? prev.phone,
-        email: match.customerEmail ?? prev.email,
-      }));
-      setPreAdviceMatched(true);
-    });
+    void lookupPreAdvice(code)
+      .then((match) => {
+        if (lastDetection.current.code !== code) return;
+        if (match) {
+          setCarrier(match.carrier);
+          setCustomer((prev) => ({
+            ...prev,
+            name: match.customerName ?? prev.name,
+            phone: match.customerPhone ?? prev.phone,
+            email: match.customerEmail ?? prev.email,
+          }));
+          setPreAdviceMatched(true);
+        }
+        // Rapid intake: no confirm tap for parcels we can trust — announced
+        // by the carrier, or an unambiguous high-confidence detection.
+        const top = candidates[0];
+        if (
+          rapidRef.current &&
+          FLOW_DIRECTION[flowRef.current] === "INBOUND" &&
+          (match || top?.confidence === "high")
+        ) {
+          autoConfirm({ code, method, carrier: match?.carrier ?? top!.carrier, match });
+        }
+      })
+      .catch(() => {
+        // Pre-advice lookup offline: leave the confirm card for manual entry.
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function confirmScan() {
     if (!pendingScan) return;
     const autoTop = pendingScan.candidates[0]?.carrier ?? "UNKNOWN";
     startTransition(async () => {
-      const res = await processScan({
+      const res = await submitScan({
         trackingNumber: pendingScan.code,
         flow,
         carrier,
@@ -91,7 +175,9 @@ export function ScanScreen() {
         notes: customer.notes,
         shelfLocation: customer.shelf,
       });
-      if (!res.ok && res.code === "VERIFICATION_REQUIRED") {
+      if ("queued" in res) {
+        setResult(null);
+      } else if (!res.ok && res.code === "VERIFICATION_REQUIRED") {
         // Existing AWAITING_PICKUP package: switch to the handover step.
         setHandover({ ...res.handover, inputMethod: pendingScan.method });
         setHandoverError(null);
@@ -107,7 +193,7 @@ export function ScanScreen() {
   function confirmHandover(verification: HandoverInput) {
     if (!handover) return;
     startTransition(async () => {
-      const res = await processScan({
+      const res = await submitScan({
         trackingNumber: handover.trackingNumber,
         flow,
         carrier: handover.carrier,
@@ -115,6 +201,12 @@ export function ScanScreen() {
         inputMethod: handover.inputMethod,
         verification,
       });
+      if ("queued" in res) {
+        setResult(null);
+        setHandover(null);
+        setHandoverError(null);
+        return;
+      }
       if (!res.ok && res.code === undefined) {
         // Verification rejected (wrong code, missing ID…) — stay on the step.
         setHandoverError(res.error);
@@ -130,7 +222,8 @@ export function ScanScreen() {
     setPendingScan(null);
   }
 
-  const scanning = !pendingScan && !result && !handover;
+  // Rapid mode keeps the scanner armed even while a result is showing.
+  const scanning = !pendingScan && !handover && (!result || (rapid && rapidEligible));
 
   return (
     <div className="grid gap-4">
@@ -138,6 +231,53 @@ export function ScanScreen() {
         <h1 className="text-xl font-semibold">Scan</h1>
         <FlowPicker value={flow} onChange={setFlow} />
       </div>
+
+      {queuedCount > 0 && (
+        <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+          {queuedCount} scan{queuedCount === 1 ? "" : "s"} saved offline — syncing automatically
+          when the connection returns.
+        </p>
+      )}
+      {syncNotices.length > 0 && (
+        <div className="grid gap-1 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+          <p className="font-medium">Synced scans that need attention:</p>
+          {syncNotices.map((notice, i) => (
+            <p key={i}>{notice}</p>
+          ))}
+          <Button type="button" variant="outline" size="sm" onClick={dismissNotices} className="justify-self-start">
+            Dismiss
+          </Button>
+        </div>
+      )}
+
+      {rapidEligible && (
+        <div className="flex flex-wrap items-center gap-3 rounded-md border p-3">
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input
+              type="checkbox"
+              checked={rapid}
+              onChange={(e) => setRapid(e.target.checked)}
+              className="size-4 accent-primary"
+            />
+            Rapid intake
+          </label>
+          {rapid && (
+            <>
+              <Input
+                value={rapidShelf}
+                onChange={(e) => setRapidShelf(e.target.value)}
+                placeholder="Batch shelf (e.g. A3)"
+                aria-label="Batch shelf location"
+                className="h-8 w-40"
+              />
+              <p className="text-xs text-muted-foreground">
+                Announced or unambiguous parcels register on scan — no confirm tap. Others still
+                show the confirm card.
+              </p>
+            </>
+          )}
+        </div>
+      )}
 
       {scanning && (
         <Card>
@@ -302,6 +442,7 @@ export function ScanScreen() {
               customerName={handover.customerName}
               trackingNumber={handover.trackingNumber}
               shelfLocation={handover.shelfLocation}
+              canOverride={canOverride}
               isPending={isPending}
               error={handoverError}
               onConfirm={confirmHandover}

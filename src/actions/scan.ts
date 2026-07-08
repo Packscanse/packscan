@@ -31,11 +31,12 @@ export async function processScan(input: unknown): Promise<ProcessScanResult> {
     return { ok: false, error: "Invalid scan input. Check the tracking number and try again." };
   }
 
-  // storeId/userId always come from the session — never from the client.
+  // storeId/userId/role always come from the session — never from the client.
   const outcome = await registerScan({
     ...parsed.data,
     storeId: session.user.storeId,
     userId: session.user.id,
+    actorRole: session.user.role,
   });
 
   if (!outcome.ok) {

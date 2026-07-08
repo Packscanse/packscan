@@ -1,11 +1,18 @@
+import { Prisma } from "@prisma/client";
 import type {
   Carrier,
   Package,
   PackageStatus,
+  Role,
   ScanInputMethod,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { notificationProvider } from "@/lib/notifications";
+import {
+  dispatchEventsForPackage,
+  enqueueCarrierEvent,
+  type EnqueueArgs,
+} from "@/lib/carrier-events";
 import {
   FLOW_DIRECTION,
   INITIAL_STATUS,
@@ -14,7 +21,7 @@ import {
   canCancel,
   type ScanFlow,
 } from "@/lib/status";
-import { CARRIER_PROVIDERS, getPickupPolicy, normalizeTrackingNumber } from "@/lib/carriers";
+import { getPickupPolicy, normalizeTrackingNumber } from "@/lib/carriers";
 import { checkHandover, type HandoverInput, type HandoverRecord } from "@/lib/verification";
 
 /** What the UI needs to render the handover-verification step. */
@@ -51,6 +58,14 @@ export interface RegisterScanArgs {
   shelfLocation?: string;
   /** Handover proof; consulted only when the scan completes a pickup. */
   verification?: HandoverInput;
+  /** Role of the acting user — a manager override demands ADMIN. */
+  actorRole?: Role;
+}
+
+/** SENT means the carrier itself will notify; anything else needs our fallback. */
+async function dispatchAndCheck(packageId: string, eventType: EnqueueArgs["eventType"]) {
+  const results = await dispatchEventsForPackage(packageId);
+  return results.some((r) => r.eventType === eventType && r.status === "SENT");
 }
 
 export function findPackageForScan(args: {
@@ -85,52 +100,86 @@ export async function registerScan(args: RegisterScanArgs): Promise<ScanOutcome>
 
   if (!existing) {
     const status = INITIAL_STATUS[args.flow];
-    const pkg = await prisma.$transaction(async (tx) => {
-      const created = await tx.package.create({
-        data: {
-          trackingNumber,
-          carrier: args.carrier,
-          carrierManual: args.carrierManual,
-          direction,
-          status,
-          storeId: args.storeId,
-          customerName: args.customerName,
-          customerPhone: args.customerPhone,
-          customerEmail: args.customerEmail,
-          notes: args.notes,
-          shelfLocation: args.shelfLocation,
-        },
-      });
-      await tx.scanEvent.create({
-        data: {
-          packageId: created.id,
-          storeId: args.storeId,
-          userId: args.userId,
-          fromStatus: null,
-          toStatus: status,
-          inputMethod: args.inputMethod,
-        },
-      });
-      // Announced parcel arrived: close the pre-advice and link it.
-      if (direction === "INBOUND") {
-        await tx.preAdvice.updateMany({
-          where: { storeId: args.storeId, trackingNumber, status: "ANNOUNCED" },
-          data: { status: "RECEIVED", receivedAt: new Date(), packageId: created.id },
+    let pkg: Package;
+    try {
+      pkg = await prisma.$transaction(async (tx) => {
+        const created = await tx.package.create({
+          data: {
+            trackingNumber,
+            carrier: args.carrier,
+            carrierManual: args.carrierManual,
+            direction,
+            status,
+            storeId: args.storeId,
+            customerName: args.customerName,
+            customerPhone: args.customerPhone,
+            customerEmail: args.customerEmail,
+            notes: args.notes,
+            shelfLocation: args.shelfLocation,
+          },
         });
+        await tx.scanEvent.create({
+          data: {
+            packageId: created.id,
+            storeId: args.storeId,
+            userId: args.userId,
+            fromStatus: null,
+            toStatus: status,
+            inputMethod: args.inputMethod,
+          },
+        });
+        // Announced parcel arrived: close the pre-advice and link it.
+        if (direction === "INBOUND") {
+          await tx.preAdvice.updateMany({
+            where: { storeId: args.storeId, trackingNumber, status: "ANNOUNCED" },
+            data: { status: "RECEIVED", receivedAt: new Date(), packageId: created.id },
+          });
+        }
+        // Same transaction as the scan event: the carrier event can never
+        // be lost between "scan recorded" and "carrier told".
+        if (status === "AWAITING_PICKUP") {
+          await enqueueCarrierEvent(tx, {
+            packageId: created.id,
+            carrier: created.carrier,
+            eventType: "ARRIVAL",
+          });
+        }
+        if (direction === "OUTBOUND") {
+          await enqueueCarrierEvent(tx, {
+            packageId: created.id,
+            carrier: created.carrier,
+            eventType: "ACCEPTED_OUTBOUND",
+          });
+        }
+        return created;
+      });
+    } catch (e) {
+      // Two devices scanning the same new label at once: the loser of the
+      // create race retries as a rescan of the winner's package.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+        const raced = await findPackageForScan({ storeId: args.storeId, trackingNumber, direction });
+        if (raced) {
+          return advanceStatus({
+            pkg: raced,
+            storeId: args.storeId,
+            userId: args.userId,
+            inputMethod: args.inputMethod,
+            verification: args.verification,
+            actorRole: args.actorRole,
+          });
+        }
       }
-      return created;
-    });
+      throw e;
+    }
     if (status === "AWAITING_PICKUP") {
-      // Carrier-first: report the arrival so the carrier notifies the
-      // recipient in its own app. Only fall back to messaging the customer
-      // directly while no carrier API is configured.
-      const reported = await reportCarrierEvent(pkg, (p) =>
-        p.reportArrival(pkg.trackingNumber)
-      );
-      if (!reported) await notifyCustomer(pkg, "AWAITING_PICKUP");
+      // Carrier-first: the carrier notifies the recipient in its own app.
+      // Only fall back to messaging the customer directly while the
+      // carrier API is unconfigured (retries continue in the background).
+      const carrierNotifies = await dispatchAndCheck(pkg.id, "ARRIVAL");
+      if (!carrierNotifies) await notifyCustomer(pkg, "AWAITING_PICKUP");
     }
     if (direction === "OUTBOUND") {
-      await reportCarrierEvent(pkg, (p) => p.reportAcceptedOutbound(pkg.trackingNumber));
+      await dispatchEventsForPackage(pkg.id);
     }
     return { ok: true, kind: "created", package: pkg };
   }
@@ -141,6 +190,7 @@ export async function registerScan(args: RegisterScanArgs): Promise<ScanOutcome>
     userId: args.userId,
     inputMethod: args.inputMethod,
     verification: args.verification,
+    actorRole: args.actorRole,
   });
 }
 
@@ -158,6 +208,8 @@ export async function advanceStatus(args: {
   verification?: HandoverInput;
   /** Driver/route/manifest reference for carrier collections. */
   courierRef?: string;
+  /** Role of the acting user — a manager override demands ADMIN. */
+  actorRole?: Role;
 }): Promise<ScanOutcome> {
   const { pkg } = args;
   const next = NEXT_STATUS[pkg.status];
@@ -185,6 +237,13 @@ export async function advanceStatus(args: {
         },
       };
     }
+    if (args.verification.override && args.actorRole !== "ADMIN") {
+      return {
+        ok: false,
+        code: "VERIFICATION_FAILED",
+        error: "Manager override requires an admin account.",
+      };
+    }
     const checked = checkHandover(getPickupPolicy(pkg.carrier), args.verification, pkg);
     if (!checked.ok) {
       return { ok: false, code: "VERIFICATION_FAILED", error: checked.error };
@@ -192,23 +251,38 @@ export async function advanceStatus(args: {
     handoverRecord = checked.record;
   }
 
+  const enqueue: EnqueueArgs | undefined =
+    next === "PICKED_UP"
+      ? {
+          packageId: pkg.id,
+          carrier: pkg.carrier,
+          eventType: "PICKED_UP",
+          proof: {
+            codePresented: handoverRecord!.presentedCode !== null,
+            idChecked: handoverRecord!.idChecked,
+            collectorName: handoverRecord!.collectorName,
+            override: handoverRecord!.override,
+          },
+        }
+      : next === "RETURNED_TO_CARRIER"
+        ? { packageId: pkg.id, carrier: pkg.carrier, eventType: "RETURNED" }
+        : undefined;
+
   const updated = await transition(
-    { ...args, verification: handoverRecord, courierRef: args.courierRef?.trim() || undefined },
+    {
+      ...args,
+      verification: handoverRecord,
+      courierRef: args.courierRef?.trim() || undefined,
+      enqueue,
+    },
     next
   );
   if (next === "PICKED_UP") {
-    const reported = await reportCarrierEvent(updated, (p) =>
-      p.reportPickedUp(updated.trackingNumber, {
-        codePresented: handoverRecord!.presentedCode !== null,
-        idChecked: handoverRecord!.idChecked,
-        collectorName: handoverRecord!.collectorName,
-        override: handoverRecord!.override,
-      })
-    );
-    if (!reported) await notifyCustomer(updated, "PICKED_UP");
+    const carrierNotifies = await dispatchAndCheck(updated.id, "PICKED_UP");
+    if (!carrierNotifies) await notifyCustomer(updated, "PICKED_UP");
   }
   if (next === "RETURNED_TO_CARRIER") {
-    await reportCarrierEvent(updated, (p) => p.reportReturned(updated.trackingNumber));
+    await dispatchEventsForPackage(updated.id);
   }
   return { ok: true, kind: "transitioned", package: updated, fromStatus: pkg.status };
 }
@@ -277,6 +351,8 @@ async function transition(
     note?: string;
     courierRef?: string;
     verification?: HandoverRecord;
+    /** Carrier event queued atomically with the scan event. */
+    enqueue?: EnqueueArgs;
   },
   toStatus: PackageStatus
 ): Promise<Package> {
@@ -298,23 +374,9 @@ async function transition(
         ...(args.verification && { verification: { create: args.verification } }),
       },
     });
+    if (args.enqueue) await enqueueCarrierEvent(tx, args.enqueue);
     return updated;
   });
-}
-
-/** True only when the carrier accepted the event. Never fatal to the scan. */
-async function reportCarrierEvent(
-  pkg: Package,
-  send: (provider: (typeof CARRIER_PROVIDERS)[number]) => Promise<{ status: string }>
-): Promise<boolean> {
-  const provider = CARRIER_PROVIDERS.find((p) => p.code === pkg.carrier);
-  if (!provider) return false; // UNKNOWN carrier: nothing to report to
-  try {
-    const report = await send(provider);
-    return report.status === "REPORTED";
-  } catch {
-    return false;
-  }
 }
 
 /**

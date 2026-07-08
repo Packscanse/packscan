@@ -45,6 +45,20 @@ enum PreAdviceStatus {
   RECEIVED
 }
 
+enum CarrierEventType {
+  ARRIVAL
+  PICKED_UP
+  ACCEPTED_OUTBOUND
+  RETURNED
+}
+
+enum CarrierEventStatus {
+  PENDING
+  SENT
+  NOT_CONFIGURED
+  FAILED
+}
+
 enum ScanInputMethod {
   CAMERA
   HARDWARE_SCANNER
@@ -135,6 +149,7 @@ model Package {
   scanEvents    ScanEvent[]
   notifications Notification[]
   preAdvice     PreAdvice?
+  carrierEvents CarrierEventOutbox[]
 
   @@unique([storeId, trackingNumber, direction])
   @@index([storeId, status])
@@ -188,6 +203,30 @@ model HandoverVerification {
   override       Boolean @default(false)
   overrideReason String?
   createdAt     DateTime @default(now())
+}
+
+// At-least-once delivery queue for carrier lifecycle events. A row is
+// written in the same transaction as the scan event that caused it; the
+// dispatcher (immediate attempt + cron retry) owns status/attempts. Rows
+// stay as a delivery log; NOT_CONFIGURED rows can be re-queued once a
+// carrier's API credentials arrive.
+model CarrierEventOutbox {
+  id        String             @id @default(cuid())
+  packageId String
+  package   Package            @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  carrier   Carrier
+  eventType CarrierEventType
+  // Event-specific payload, e.g. the proof-of-delivery summary for PICKED_UP.
+  payload   Json?
+  status    CarrierEventStatus @default(PENDING)
+  attempts  Int                @default(0)
+  lastError String?
+  nextAttemptAt DateTime       @default(now())
+  createdAt DateTime           @default(now())
+  sentAt    DateTime?
+
+  @@index([status, nextAttemptAt])
+  @@index([packageId])
 }
 
 // What a carrier announced as inbound for a store (the pre-advice/manifest).

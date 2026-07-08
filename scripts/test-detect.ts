@@ -80,5 +80,21 @@ expectClassify("carrier-app QR payload", "PNQR-8f3a2b1c-PICKUP", "CODE");
 expectClassify("plain numeric pickup code", "482913", "CODE");
 expectClassify("tracking-like code starting with I", "ID12345678", "CODE");
 
+// Failed-login rate limiter (pure in-memory): per-email and per-IP scopes.
+import { clearFailures, isRateLimited, recordFailure } from "../src/lib/rate-limit";
+function expectLimit(label: string, ok: boolean) {
+  if (!ok) failures++;
+  console.log(`${ok ? "PASS" : "FAIL"}  ${label}`);
+}
+for (let i = 0; i < 10; i++) recordFailure("email", "victim@test.local");
+expectLimit("rate limit: email locked after 10 failures", isRateLimited("email", "victim@test.local"));
+expectLimit("rate limit: other emails unaffected", !isRateLimited("email", "other@test.local"));
+clearFailures("email", "victim@test.local");
+expectLimit("rate limit: cleared on successful login", !isRateLimited("email", "victim@test.local"));
+for (let i = 0; i < 29; i++) recordFailure("ip", "10.0.0.9");
+expectLimit("rate limit: IP not locked at 29 failures", !isRateLimited("ip", "10.0.0.9"));
+recordFailure("ip", "10.0.0.9");
+expectLimit("rate limit: IP locked at 30 failures", isRateLimited("ip", "10.0.0.9"));
+
 console.log(failures === 0 ? "\nAll detection checks passed." : `\n${failures} check(s) FAILED.`);
 process.exit(failures === 0 ? 0 : 1);

@@ -75,6 +75,7 @@ export async function completePickupAction(
     userId: session.user.id,
     inputMethod: "STATUS_ACTION",
     verification: parsed.data,
+    actorRole: session.user.role,
   });
   if (!outcome.ok) return { ok: false, error: outcome.error };
 

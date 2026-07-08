@@ -34,6 +34,7 @@ export function HandoverPanel({
   customerName,
   trackingNumber,
   shelfLocation,
+  canOverride,
   isPending,
   error,
   onConfirm,
@@ -43,6 +44,8 @@ export function HandoverPanel({
   customerName: string | null;
   trackingNumber: string;
   shelfLocation: string | null;
+  /** Overrides are admin-only; the server enforces this regardless. */
+  canOverride: boolean;
   isPending: boolean;
   error: string | null;
   onConfirm: (verification: HandoverInput) => void;
@@ -234,17 +237,23 @@ export function HandoverPanel({
       )}
 
       {/* Escape hatch for the customer the policy would strand (dead phone,
-          lost code). Loud in the audit trail; reason is mandatory. */}
+          lost code). Admin-only, loud in the audit trail, reason mandatory. */}
       <div className="grid gap-2 rounded-md border border-dashed p-3">
         <label className="flex items-center gap-2 text-sm font-medium">
           <input
             type="checkbox"
             checked={override}
+            disabled={!canOverride}
             onChange={(e) => setOverride(e.target.checked)}
-            className="size-4 accent-primary"
+            className="size-4 accent-primary disabled:opacity-50"
           />
           Manager override — complete without full verification
         </label>
+        {!canOverride && (
+          <p className="text-xs text-muted-foreground">
+            Requires an admin account — ask a manager to sign in.
+          </p>
+        )}
         {override && (
           <div className="grid gap-1">
             <Input

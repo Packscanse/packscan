@@ -16,27 +16,33 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     Credentials({
       credentials: { email: {}, password: {} },
-      async authorize(raw) {
+      async authorize(raw, request) {
         const parsed = LoginSchema.safeParse(raw);
         if (!parsed.success) return null;
         const email = parsed.data.email.toLowerCase();
+        // Behind a proxy the left-most XFF entry is the client; locally
+        // there is none and every request shares the "local" bucket.
+        const ip =
+          request.headers?.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
 
-        if (isRateLimited(email)) return null;
+        if (isRateLimited("email", email) || isRateLimited("ip", ip)) return null;
 
         const user = await prisma.user.findUnique({
           where: { email },
           include: { store: { select: { sessionIdleMinutes: true } } },
         });
         if (!user || !user.active) {
-          recordFailure(email);
+          recordFailure("email", email);
+          recordFailure("ip", ip);
           return null;
         }
         const valid = await bcrypt.compare(parsed.data.password, user.passwordHash);
         if (!valid) {
-          recordFailure(email);
+          recordFailure("email", email);
+          recordFailure("ip", ip);
           return null;
         }
-        clearFailures(email);
+        clearFailures("email", email);
         return {
           id: user.id,
           email: user.email,

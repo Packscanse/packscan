@@ -54,9 +54,19 @@ async function main() {
     data: { customerName: null, customerPhone: null, customerEmail: null },
   });
 
+  // Announced-but-never-arrived pre-advice would otherwise hold recipient
+  // PII forever; after the announce window it has no operational value.
+  const announceCutoff = new Date(
+    Date.now() - Number.parseInt(process.env.PREADVICE_RETENTION_DAYS ?? "30", 10) * 24 * 60 * 60 * 1000
+  );
+  const staleAnnounced = await prisma.preAdvice.deleteMany({
+    where: { status: "ANNOUNCED", announcedAt: { lt: announceCutoff } },
+  });
+
   console.log(`Packages scrubbed: ${packages.count}`);
   console.log(`Notifications deleted: ${notifications.count}`);
   console.log(`Pre-advice rows scrubbed: ${preAdvice.count}`);
+  console.log(`Stale announced pre-advice deleted: ${staleAnnounced.count}`);
   process.exit(0);
 }
 

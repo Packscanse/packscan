@@ -128,10 +128,19 @@ async function main() {
     );
   }
 
-  // --- Manager override: stranded customer, mandatory reason ---
+  // --- Manager override: admin-only, stranded customer, mandatory reason ---
   const ovr1 = await registerScan({ ...base, trackingNumber: `${TEST_PREFIX}OVR01`, flow: "INBOUND_PICKUP" });
+  const ovrClerk = await registerScan({
+    ...base,
+    actorRole: "CLERK" as const,
+    trackingNumber: `${TEST_PREFIX}OVR01`,
+    flow: "INBOUND_PICKUP",
+    verification: { idChecked: false, override: true, overrideReason: "clerk trying" },
+  });
+  check("override: clerk role rejected", !ovrClerk.ok && ovrClerk.code === "VERIFICATION_FAILED");
   const ovrNoReason = await registerScan({
     ...base,
+    actorRole: "ADMIN" as const,
     trackingNumber: `${TEST_PREFIX}OVR01`,
     flow: "INBOUND_PICKUP",
     verification: { idChecked: false, override: true },
@@ -139,11 +148,12 @@ async function main() {
   check("override: blocked without a reason", !ovrNoReason.ok && ovrNoReason.code === "VERIFICATION_FAILED");
   const ovr2 = await registerScan({
     ...base,
+    actorRole: "ADMIN" as const,
     trackingNumber: `${TEST_PREFIX}OVR01`,
     flow: "INBOUND_PICKUP",
     verification: { idChecked: false, override: true, overrideReason: "Phone dead, known regular customer" },
   });
-  check("override: completes the pickup with a reason", ovr2.ok && ovr2.package.status === "PICKED_UP");
+  check("override: admin completes the pickup with a reason", ovr2.ok && ovr2.package.status === "PICKED_UP");
   if (ovr1.ok) {
     const ovrRecord = await prisma.handoverVerification.findFirst({
       where: { scanEvent: { packageId: ovr1.package.id } },
@@ -262,11 +272,46 @@ async function main() {
     check("cancel: CANCELLED cannot be cancelled again", !again.ok && again.code === "INVALID_ACTION");
   }
 
+  // --- Carrier event outbox: enqueued atomically, dispatched immediately ---
+  // With no API credentials every event lands as NOT_CONFIGURED (never lost,
+  // re-queueable when credentials arrive).
+  const outbox = await prisma.carrierEventOutbox.findMany({
+    where: { package: { trackingNumber: { startsWith: TEST_PREFIX } } },
+    select: { eventType: true, status: true },
+  });
+  const outboxTypes = outbox.map((e) => e.eventType).sort();
+  check(
+    "outbox: arrival, pickup, outbound-accept, and return events queued",
+    outboxTypes.includes("ARRIVAL") &&
+      outboxTypes.includes("PICKED_UP") &&
+      outboxTypes.includes("ACCEPTED_OUTBOUND") &&
+      outboxTypes.includes("RETURNED"),
+    outboxTypes.join(", ")
+  );
+  check(
+    "outbox: all events attempted, none stuck PENDING",
+    outbox.length > 0 && outbox.every((e) => e.status === "NOT_CONFIGURED"),
+    outbox.map((e) => `${e.eventType}:${e.status}`).join(", ")
+  );
+
+  // --- Concurrent duplicate scan: the create race resolves gracefully ---
+  const [race1, race2] = await Promise.all([
+    registerScan({ ...base, trackingNumber: `${TEST_PREFIX}RACE1`, flow: "INBOUND_LOG" }),
+    registerScan({ ...base, trackingNumber: `${TEST_PREFIX}RACE1`, flow: "INBOUND_LOG" }),
+  ]);
+  const raceCreated = [race1, race2].filter((r) => r.ok && r.kind === "created").length;
+  const raceHandled = [race1, race2].every((r) => r.ok || r.code === "TERMINAL_STATUS");
+  check(
+    "race: two simultaneous first scans — one creates, none crash",
+    raceCreated === 1 && raceHandled,
+    [race1, race2].map((r) => (r.ok ? r.kind : r.code)).join(" / ")
+  );
+
   // --- Audit trail ---
   const events = await prisma.scanEvent.count({
     where: { storeId: store.id, package: { trackingNumber: { startsWith: TEST_PREFIX } } },
   });
-  check("audit: expected 16 scan events recorded", events === 16, `got ${events}`);
+  check("audit: expected 17 scan events recorded", events === 17, `got ${events}`);
 
   // Audit rows survive package deletion attempts (Restrict, not Cascade)
   if (log1.ok) {
