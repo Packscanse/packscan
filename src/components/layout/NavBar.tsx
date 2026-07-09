@@ -20,7 +20,8 @@ export function NavBar({
         <Link href="/scan" className="font-semibold tracking-tight">
           Packscan
         </Link>
-        <nav className="flex items-center gap-1 text-sm">
+        {/* Desktop nav; handhelds use the bottom tab bar instead. */}
+        <nav className="hidden items-center gap-1 text-sm sm:flex">
           <Button asChild variant="ghost" size="sm">
             <Link href="/scan">Scan</Link>
           </Button>
@@ -37,8 +38,10 @@ export function NavBar({
           </RoleGate>
         </nav>
         <div className="ml-auto flex items-center gap-3">
+          <Badge variant="secondary" className="max-w-32 truncate sm:max-w-none">
+            {storeName}
+          </Badge>
           <div className="hidden items-center gap-2 sm:flex">
-            <Badge variant="secondary">{storeName}</Badge>
             <span className="text-sm text-muted-foreground">
               {session.user.name}
             </span>

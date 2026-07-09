@@ -166,7 +166,7 @@ export function HandoverPanel({
                   </Button>
                   <Input
                     id="presented-code"
-                    className="w-48"
+                    className="w-full sm:w-48"
                     placeholder="…or type the code"
                     autoComplete="off"
                     onKeyDown={(e) => {
@@ -272,9 +272,11 @@ export function HandoverPanel({
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <div className="flex gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
         <Button
           type="button"
+          size="lg"
+          className="sm:h-8 sm:text-sm"
           disabled={!satisfied || isPending}
           onClick={() =>
             onConfirm({

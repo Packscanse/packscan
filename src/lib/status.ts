@@ -67,3 +67,10 @@ export const FLOW_LABELS: Record<ScanFlow, string> = {
   INBOUND_PICKUP: "Inbound: customer pickup",
   OUTBOUND_HANDOFF: "Outbound: carrier handoff",
 };
+
+/** Compact labels for narrow handheld screens. */
+export const FLOW_LABELS_SHORT: Record<ScanFlow, string> = {
+  INBOUND_LOG: "Log",
+  INBOUND_PICKUP: "Pickup",
+  OUTBOUND_HANDOFF: "Drop-off",
+};

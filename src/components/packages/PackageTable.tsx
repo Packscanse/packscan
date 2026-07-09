@@ -22,39 +22,74 @@ export function PackageTable({ packages }: { packages: Package[] }) {
   }
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Tracking number</TableHead>
-          <TableHead>Carrier</TableHead>
-          <TableHead>Direction</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead>Shelf</TableHead>
-          <TableHead className="hidden sm:table-cell">Customer</TableHead>
-          <TableHead className="hidden sm:table-cell">Updated</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
+    <>
+      {/* Handhelds get tappable cards; the table needs a desktop. */}
+      <div className="grid gap-2 sm:hidden">
         {packages.map((pkg) => (
-          <TableRow key={pkg.id}>
-            <TableCell className="font-mono">
-              <Link href={`/packages/${pkg.id}`} className="underline-offset-2 hover:underline">
-                {pkg.trackingNumber}
-              </Link>
-            </TableCell>
-            <TableCell>{CARRIER_LABELS[pkg.carrier]}</TableCell>
-            <TableCell className="capitalize">{pkg.direction.toLowerCase()}</TableCell>
-            <TableCell>
+          <Link
+            key={pkg.id}
+            href={`/packages/${pkg.id}`}
+            className="grid gap-1 rounded-lg border bg-background p-3 active:bg-muted"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="truncate font-mono text-sm font-medium">{pkg.trackingNumber}</span>
               <PackageStatusBadge status={pkg.status} />
-            </TableCell>
-            <TableCell className="font-semibold">{pkg.shelfLocation ?? "—"}</TableCell>
-            <TableCell className="hidden sm:table-cell">{pkg.customerName ?? "—"}</TableCell>
-            <TableCell className="hidden text-muted-foreground sm:table-cell">
+            </div>
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <span className="text-muted-foreground">
+                {CARRIER_LABELS[pkg.carrier]}
+                {pkg.customerName ? ` · ${pkg.customerName}` : ""}
+              </span>
+              {pkg.shelfLocation && (
+                <span className="rounded bg-muted px-1.5 py-0.5 font-semibold">
+                  {pkg.shelfLocation}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {pkg.direction === "INBOUND" ? "Inbound" : "Outbound"} · updated{" "}
               {format(pkg.updatedAt, "MMM d, HH:mm")}
-            </TableCell>
-          </TableRow>
+            </p>
+          </Link>
         ))}
-      </TableBody>
-    </Table>
+      </div>
+
+      <div className="hidden sm:block">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Tracking number</TableHead>
+              <TableHead>Carrier</TableHead>
+              <TableHead>Direction</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Shelf</TableHead>
+              <TableHead>Customer</TableHead>
+              <TableHead>Updated</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {packages.map((pkg) => (
+              <TableRow key={pkg.id}>
+                <TableCell className="font-mono">
+                  <Link href={`/packages/${pkg.id}`} className="underline-offset-2 hover:underline">
+                    {pkg.trackingNumber}
+                  </Link>
+                </TableCell>
+                <TableCell>{CARRIER_LABELS[pkg.carrier]}</TableCell>
+                <TableCell className="capitalize">{pkg.direction.toLowerCase()}</TableCell>
+                <TableCell>
+                  <PackageStatusBadge status={pkg.status} />
+                </TableCell>
+                <TableCell className="font-semibold">{pkg.shelfLocation ?? "—"}</TableCell>
+                <TableCell>{pkg.customerName ?? "—"}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  {format(pkg.updatedAt, "MMM d, HH:mm")}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { FLOW_LABELS, SCAN_FLOWS, type ScanFlow } from "@/lib/status";
+import { FLOW_LABELS, FLOW_LABELS_SHORT, SCAN_FLOWS, type ScanFlow } from "@/lib/status";
 
 export function FlowPicker({
   value,
@@ -11,16 +11,17 @@ export function FlowPicker({
   onChange: (flow: ScanFlow) => void;
 }) {
   return (
-    <div className="grid gap-2 sm:grid-cols-3">
+    <div className="grid grid-cols-3 gap-2">
       {SCAN_FLOWS.map((flow) => (
         <Button
           key={flow}
           type="button"
           variant={value === flow ? "default" : "outline"}
           onClick={() => onChange(flow)}
-          className="h-auto justify-start px-3 py-2 text-left sm:justify-center sm:text-center"
+          className="h-12 px-2 sm:h-auto sm:px-3 sm:py-2"
         >
-          {FLOW_LABELS[flow]}
+          <span className="sm:hidden">{FLOW_LABELS_SHORT[flow]}</span>
+          <span className="hidden sm:inline">{FLOW_LABELS[flow]}</span>
         </Button>
       ))}
     </div>

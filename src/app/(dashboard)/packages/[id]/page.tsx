@@ -131,7 +131,7 @@ export default async function PackageDetailPage({
                 maxLength={80}
                 placeholder="Driver / route ref (optional)"
                 aria-label="Courier reference"
-                className="w-56"
+                className="w-full sm:w-56"
               />
               <SubmitButton pendingText="Updating…">
                 {next === "HANDED_OFF" ? "Mark handed off" : "Mark returned to carrier"}
@@ -148,7 +148,7 @@ export default async function PackageDetailPage({
                 maxLength={300}
                 placeholder="Return reason (optional)"
                 aria-label="Return reason"
-                className="w-56"
+                className="w-full sm:w-56"
               />
               <SubmitButton variant="secondary" pendingText="Updating…">
                 Mark for return
@@ -172,7 +172,7 @@ export default async function PackageDetailPage({
                 maxLength={300}
                 placeholder="Reason for cancelling (required)"
                 aria-label="Cancellation reason"
-                className="w-64"
+                className="w-full sm:w-64"
               />
               <SubmitButton variant="destructive" pendingText="Cancelling…">
                 Cancel package

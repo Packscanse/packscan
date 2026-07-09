@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import type { ScanInputMethod } from "@prisma/client";
 import {
   detectCarrierCandidates,
@@ -36,6 +36,8 @@ interface PendingScan {
 }
 
 const SAME_CODE_DEBOUNCE_MS = 2000;
+// Remembered per device: a phone at the counter is camera-first.
+const CAMERA_AUTO_KEY = "packscan-camera-auto";
 
 export function ScanScreen({
   canOverride,
@@ -73,6 +75,28 @@ export function ScanScreen({
   rapidShelfRef.current = rapidShelf;
 
   const rapidEligible = FLOW_DIRECTION[flow] === "INBOUND";
+
+  // Camera-first on devices where it was used before: reopen it whenever
+  // the screen returns to the scanning state. Stopping it turns this off.
+  const scanningNow = !pendingScan && !handover && !result;
+  useEffect(() => {
+    if (scanningNow && !cameraOn && window.localStorage.getItem(CAMERA_AUTO_KEY) === "1") {
+      setCameraError(null);
+      setCameraOn(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanningNow]);
+
+  function startCamera() {
+    window.localStorage.setItem(CAMERA_AUTO_KEY, "1");
+    setCameraError(null);
+    setCameraOn(true);
+  }
+
+  function stopCamera() {
+    window.localStorage.removeItem(CAMERA_AUTO_KEY);
+    setCameraOn(false);
+  }
 
   /** Network failure ⇒ queue for background sync instead of losing the scan. */
   async function submitScan(
@@ -276,7 +300,7 @@ export function ScanScreen({
                 onChange={(e) => setRapidShelf(e.target.value)}
                 placeholder="Batch shelf (e.g. A3)"
                 aria-label="Batch shelf location"
-                className="h-8 w-40"
+                className="h-11 w-40 md:h-8"
               />
               <p className="text-xs text-muted-foreground">
                 Announced (pre-advised) parcels register on scan — no confirm tap. Log-only mode
@@ -297,7 +321,7 @@ export function ScanScreen({
           <CardContent className="grid gap-4">
             {/* Hardware scanner: invisible, always armed while scanning. */}
             <HardwareScannerInput onDetect={(code) => handleCode(code, "HARDWARE_SCANNER")} />
-            <p className="text-sm text-muted-foreground">
+            <p className="hidden text-sm text-muted-foreground sm:block">
               Hardware scanner ready — just scan a label. Or:
             </p>
 
@@ -310,14 +334,14 @@ export function ScanScreen({
                     setCameraOn(false);
                   }}
                 />
-                <Button type="button" variant="outline" onClick={() => setCameraOn(false)}>
+                <Button type="button" variant="outline" onClick={stopCamera}>
                   Stop camera
                 </Button>
               </div>
             ) : (
               <div className="grid gap-2">
-                <Button type="button" variant="secondary" onClick={() => { setCameraError(null); setCameraOn(true); }}>
-                  Start camera scanning
+                <Button type="button" size="lg" variant="default" onClick={startCamera} className="sm:h-9">
+                  Scan with camera
                 </Button>
                 {cameraError && <p className="text-sm text-destructive">{cameraError}</p>}
               </div>
@@ -425,8 +449,8 @@ export function ScanScreen({
               </div>
             )}
 
-            <div className="flex gap-2">
-              <Button type="button" onClick={confirmScan} disabled={isPending}>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button type="button" size="lg" onClick={confirmScan} disabled={isPending} className="sm:h-8 sm:text-sm">
                 {isPending ? "Saving…" : "Confirm scan"}
               </Button>
               <Button type="button" variant="outline" onClick={discardScan} disabled={isPending}>

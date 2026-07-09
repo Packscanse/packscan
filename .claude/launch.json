@@ -12,6 +12,19 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--", "-p", "3100"],
       "port": 3100
+    },
+    {
+      "name": "packscan-dev-phone",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run", "dev", "--",
+        "--experimental-https",
+        "--experimental-https-key", "./certificates/lan-key.pem",
+        "--experimental-https-cert", "./certificates/lan-cert.pem",
+        "-H", "0.0.0.0",
+        "-p", "3200"
+      ],
+      "port": 3200
     }
   ]
 }

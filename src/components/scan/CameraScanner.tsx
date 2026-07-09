@@ -66,7 +66,7 @@ export function CameraScanner({
   return (
     <video
       ref={videoRef}
-      className="aspect-video w-full rounded-md bg-black object-cover"
+      className="aspect-[3/4] w-full rounded-md bg-black object-cover sm:aspect-video"
       muted
       playsInline
     />
