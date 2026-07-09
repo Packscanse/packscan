@@ -15,7 +15,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   providers: [
     Credentials({
-      credentials: { email: {}, password: {} },
+      credentials: { email: {}, password: {}, pin: {} },
       async authorize(raw, request) {
         const parsed = LoginSchema.safeParse(raw);
         if (!parsed.success) return null;
@@ -36,7 +36,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           recordFailure("ip", ip);
           return null;
         }
-        const valid = await bcrypt.compare(parsed.data.password, user.passwordHash);
+        // Counter PIN signs in for scanning; administration always needs
+        // the password (enforced via authMethod on the session).
+        const valid = parsed.data.pin
+          ? user.pinHash !== null && (await bcrypt.compare(parsed.data.pin, user.pinHash))
+          : await bcrypt.compare(parsed.data.password!, user.passwordHash);
         if (!valid) {
           recordFailure("email", email);
           recordFailure("ip", ip);
@@ -50,6 +54,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           role: user.role,
           storeId: user.storeId,
           idleMinutes: user.store?.sessionIdleMinutes ?? DEFAULT_IDLE_MINUTES,
+          authMethod: parsed.data.pin ? ("PIN" as const) : ("PASSWORD" as const),
         };
       },
     }),
@@ -65,6 +70,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.role = user.role;
         token.storeId = user.storeId;
         token.idleMinutes = user.idleMinutes;
+        token.authMethod = user.authMethod;
         token.lastActivity = Date.now();
         token.checkedAt = Date.now();
         return token;

@@ -63,12 +63,14 @@ export async function processScan(input: unknown): Promise<ProcessScanResult> {
         : "")
     : undefined;
 
-  // storeId/userId/role always come from the session — never from the client.
+  // storeId/userId/role always come from the session — never from the
+  // client. A PIN session acts as CLERK regardless of account role, so a
+  // manager override always requires a password sign-in.
   const outcome = await registerScan({
     ...parsed.data,
     storeId: session.user.storeId,
     userId: session.user.id,
-    actorRole: session.user.role,
+    actorRole: session.user.authMethod === "PASSWORD" ? session.user.role : "CLERK",
     note: offlineNote,
   });
 

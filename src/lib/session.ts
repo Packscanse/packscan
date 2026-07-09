@@ -9,10 +9,15 @@ export async function getRequiredSession(): Promise<Session> {
   return session;
 }
 
-/** Auth check close to the data: admin pages call this themselves rather than relying only on the layout guard. */
+/**
+ * Auth check close to the data: admin pages call this themselves rather
+ * than relying only on the layout guard. Administration demands a
+ * password-established session — a counter PIN never unlocks it, even for
+ * an admin account.
+ */
 export async function getRequiredAdminSession(): Promise<Session> {
   const session = await getRequiredSession();
-  if (session.user.role !== "ADMIN") notFound();
+  if (session.user.role !== "ADMIN" || session.user.authMethod !== "PASSWORD") notFound();
   return session;
 }
 

@@ -1,6 +1,10 @@
 import { getRequiredAdminSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { updateStoreDeadlineAction, updateStoreIdleAction } from "@/actions/admin";
+import {
+  updateStoreBrandAction,
+  updateStoreDeadlineAction,
+  updateStoreIdleAction,
+} from "@/actions/admin";
 import { CreateStoreForm } from "@/components/admin/CreateStoreForm";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,6 +40,7 @@ export default async function AdminStoresPage() {
                 <TableHead>Packages</TableHead>
                 <TableHead>Idle logout</TableHead>
                 <TableHead>Pickup deadline</TableHead>
+                <TableHead>Brand color</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -85,6 +90,29 @@ export default async function AdminStoresPage() {
                       </select>
                       <SubmitButton pendingText="Saving…">Save</SubmitButton>
                     </form>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <form action={updateStoreBrandAction} className="flex items-center gap-2">
+                        <input type="hidden" name="storeId" value={store.id} />
+                        <input
+                          type="color"
+                          name="brandColor"
+                          key={store.brandColor ?? "unset"}
+                          defaultValue={store.brandColor ?? "#0a0a0a"}
+                          aria-label={`Brand color for ${store.name}`}
+                          className="size-8 cursor-pointer rounded border border-input bg-transparent p-0.5"
+                        />
+                        <SubmitButton pendingText="Saving…">Save</SubmitButton>
+                      </form>
+                      {store.brandColor && (
+                        <form action={updateStoreBrandAction}>
+                          <input type="hidden" name="storeId" value={store.id} />
+                          <input type="hidden" name="brandColor" value="" />
+                          <SubmitButton variant="ghost" pendingText="…">Reset</SubmitButton>
+                        </form>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

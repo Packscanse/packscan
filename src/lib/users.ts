@@ -79,3 +79,24 @@ export async function resetUserPassword(args: {
   });
   return { ok: true };
 }
+
+/**
+ * Set (or clear) the 6-digit counter PIN. A PIN-established session can
+ * only scan — administration always demands the password.
+ */
+export async function setUserPin(args: {
+  targetId: string;
+  pin: string | null;
+}): Promise<UserAdminResult> {
+  const target = await prisma.user.findUnique({ where: { id: args.targetId } });
+  if (!target) return { ok: false, error: "User not found." };
+  if (args.pin !== null && !/^\d{6}$/.test(args.pin)) {
+    return { ok: false, error: "PIN must be exactly 6 digits." };
+  }
+
+  await prisma.user.update({
+    where: { id: target.id },
+    data: { pinHash: args.pin === null ? null : await bcrypt.hash(args.pin, 10) },
+  });
+  return { ok: true };
+}

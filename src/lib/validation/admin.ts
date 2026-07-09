@@ -57,3 +57,14 @@ export const ResetPasswordSchema = z.object({
   userId: z.string().min(1),
   password: z.string().min(8).max(128),
 });
+
+export const SetPinSchema = z.object({
+  userId: z.string().min(1),
+  pin: z.string().regex(/^\d{6}$/, "PIN must be exactly 6 digits"),
+});
+
+export const UpdateStoreBrandSchema = z.object({
+  storeId: z.string().min(1),
+  // Native color inputs always submit #rrggbb; empty string clears.
+  brandColor: z.union([z.literal(""), z.string().regex(/^#[0-9a-fA-F]{6}$/)]),
+});

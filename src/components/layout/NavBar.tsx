@@ -3,7 +3,6 @@ import type { Session } from "next-auth";
 import { logoutAction } from "@/actions/auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { RoleGate } from "./RoleGate";
 
 export function NavBar({
   session,
@@ -13,6 +12,9 @@ export function NavBar({
   storeName: string;
 }) {
   const isAdmin = session.user.role === "ADMIN";
+  // Administration needs a password session; hide the entry point for PIN
+  // sessions (the server-side guards enforce it regardless).
+  const showAdmin = isAdmin && session.user.authMethod === "PASSWORD";
 
   return (
     <header className="border-b bg-background">
@@ -31,11 +33,11 @@ export function NavBar({
           <Button asChild variant="ghost" size="sm">
             <Link href="/expected">Expected</Link>
           </Button>
-          <RoleGate role="ADMIN">
+          {showAdmin && (
             <Button asChild variant="ghost" size="sm">
               <Link href="/admin">Admin</Link>
             </Button>
-          </RoleGate>
+          )}
         </nav>
         <div className="ml-auto flex items-center gap-3">
           <Badge variant="secondary" className="max-w-32 truncate sm:max-w-none">

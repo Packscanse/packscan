@@ -100,6 +100,9 @@ model Store {
   sessionIdleMinutes Int @default(10)
   // Days a parcel may await pickup before it counts as overdue for return.
   pickupDeadlineDays Int @default(7)
+  // Chain branding: the store's primary color (hex, e.g. ICA red) themes
+  // the app for everyone signed in to this store. Null = default theme.
+  brandColor String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -113,6 +116,9 @@ model User {
   id           String   @id @default(cuid())
   email        String   @unique
   passwordHash String
+  // Optional 6-digit counter PIN (bcrypt). PIN sessions can scan but never
+  // reach administration — that always requires the password.
+  pinHash      String?
   name         String
   role         Role     @default(CLERK)
   storeId      String

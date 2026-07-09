@@ -6,7 +6,7 @@
  */
 import bcrypt from "bcryptjs";
 import { prisma } from "../src/lib/prisma";
-import { resetUserPassword, setUserActive, setUserRole } from "../src/lib/users";
+import { resetUserPassword, setUserActive, setUserPin, setUserRole } from "../src/lib/users";
 
 const TEST_EMAILS = ["ua-admin1@pkstest.local", "ua-admin2@pkstest.local", "ua-clerk1@pkstest.local"];
 let failures = 0;
@@ -93,6 +93,19 @@ async function main() {
     "password: reset produces a hash matching the new password",
     reset.ok && (await bcrypt.compare("brand-new-password", clerkHash.passwordHash))
   );
+
+  // --- Counter PIN ---
+  const badPin = await setUserPin({ targetId: clerk1.id, pin: "12345" });
+  check("pin: non-6-digit PIN rejected", !badPin.ok);
+  const setPin = await setUserPin({ targetId: clerk1.id, pin: "654321" });
+  const withPin = await prisma.user.findUniqueOrThrow({ where: { id: clerk1.id } });
+  check(
+    "pin: 6-digit PIN set and hashed",
+    setPin.ok && withPin.pinHash !== null && (await bcrypt.compare("654321", withPin.pinHash))
+  );
+  const clearPin = await setUserPin({ targetId: clerk1.id, pin: null });
+  const withoutPin = await prisma.user.findUniqueOrThrow({ where: { id: clerk1.id } });
+  check("pin: cleared", clearPin.ok && withoutPin.pinHash === null);
 
   const missing = await setUserActive({ actorId: admin1.id, targetId: "nonexistent-id", active: false });
   check("unknown user id returns an error", !missing.ok);

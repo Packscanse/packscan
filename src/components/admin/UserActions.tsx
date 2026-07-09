@@ -5,6 +5,7 @@ import type { Role } from "@prisma/client";
 import {
   resetUserPasswordAction,
   setUserActiveAction,
+  setUserPinAction,
   setUserRoleAction,
   type AdminFormState,
 } from "@/actions/admin";
@@ -37,6 +38,7 @@ export function UserActions({
   const [activeState, activeAction, activePending] = useActionState(setUserActiveAction, undefined);
   const [roleState, roleAction, rolePending] = useActionState(setUserRoleAction, undefined);
   const [pwState, pwAction, pwPending] = useActionState(resetUserPasswordAction, undefined);
+  const [pinState, pinAction, pinPending] = useActionState(setUserPinAction, undefined);
 
   return (
     <div className="grid max-w-xs gap-2">
@@ -91,6 +93,27 @@ export function UserActions({
         </Button>
       </form>
       <StateLine state={pwState} />
+
+      <form action={pinAction} className="flex items-center gap-2">
+        <input type="hidden" name="userId" value={userId} />
+        <Input
+          name="pin"
+          type="text"
+          required
+          inputMode="numeric"
+          pattern="\d{6}"
+          minLength={6}
+          maxLength={6}
+          placeholder="6-digit PIN"
+          autoComplete="off"
+          aria-label="Counter PIN"
+          className="h-8 w-36"
+        />
+        <Button type="submit" variant="outline" size="sm" disabled={pinPending}>
+          {pinPending ? "Saving…" : "Set PIN"}
+        </Button>
+      </form>
+      <StateLine state={pinState} />
     </div>
   );
 }

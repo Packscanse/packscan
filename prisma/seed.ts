@@ -13,6 +13,7 @@ const ADMIN_EMAIL = "admin@packscan.local";
 const CLERK_EMAIL = "clerk@packscan.local";
 const ADMIN_PASSWORD = "admin-dev-password";
 const CLERK_PASSWORD = "clerk-dev-password";
+const CLERK_PIN = "123456";
 
 async function main() {
   const store = await prisma.store.upsert({
@@ -37,21 +38,23 @@ async function main() {
     },
   });
 
+  const clerkPinHash = await bcrypt.hash(CLERK_PIN, 10);
   await prisma.user.upsert({
     where: { email: CLERK_EMAIL },
-    update: {},
+    update: { pinHash: clerkPinHash },
     create: {
       email: CLERK_EMAIL,
       name: "Demo Clerk",
       role: "CLERK",
       storeId: store.id,
       passwordHash: await bcrypt.hash(CLERK_PASSWORD, 10),
+      pinHash: clerkPinHash,
     },
   });
 
   console.log(`Seeded store "${store.name}" (${store.code}) with users:`);
   console.log(`  ADMIN  ${ADMIN_EMAIL} / ${ADMIN_PASSWORD}`);
-  console.log(`  CLERK  ${CLERK_EMAIL} / ${CLERK_PASSWORD}`);
+  console.log(`  CLERK  ${CLERK_EMAIL} / ${CLERK_PASSWORD} (counter PIN ${CLERK_PIN})`);
 }
 
 main()

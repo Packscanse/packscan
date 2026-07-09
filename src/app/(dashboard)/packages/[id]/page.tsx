@@ -111,7 +111,7 @@ export default async function PackageDetailPage({
           customerName={pkg.customerName}
           trackingNumber={pkg.trackingNumber}
           shelfLocation={pkg.shelfLocation}
-          canOverride={session.user.role === "ADMIN"}
+          canOverride={session.user.role === "ADMIN" && session.user.authMethod === "PASSWORD"}
         />
       )}
 

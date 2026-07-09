@@ -44,6 +44,7 @@ export const authConfig = {
         token.role = user.role;
         token.storeId = user.storeId;
         token.idleMinutes = user.idleMinutes;
+        token.authMethod = user.authMethod;
         token.lastActivity = Date.now();
         return token;
       }
@@ -53,6 +54,9 @@ export const authConfig = {
       session.user.id = token.sub!;
       session.user.role = token.role;
       session.user.storeId = token.storeId;
+      // Tokens minted before PIN login existed could only have come from a
+      // password sign-in.
+      session.user.authMethod = token.authMethod ?? "PASSWORD";
       return session;
     },
   },

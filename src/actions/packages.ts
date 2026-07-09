@@ -75,7 +75,8 @@ export async function completePickupAction(
     userId: session.user.id,
     inputMethod: "STATUS_ACTION",
     verification: parsed.data,
-    actorRole: session.user.role,
+    // A PIN session acts as CLERK: overrides need a password sign-in.
+    actorRole: session.user.authMethod === "PASSWORD" ? session.user.role : "CLERK",
   });
   if (!outcome.ok) return { ok: false, error: outcome.error };
 

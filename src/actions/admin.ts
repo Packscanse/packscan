@@ -5,27 +5,35 @@ import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { getRequiredSession } from "@/lib/session";
-import { resetUserPassword, setUserActive, setUserRole } from "@/lib/users";
+import { resetUserPassword, setUserActive, setUserPin, setUserRole } from "@/lib/users";
 import {
   CreateStoreSchema,
   CreateUserSchema,
   ResetPasswordSchema,
+  SetPinSchema,
   SetUserActiveSchema,
   SetUserRoleSchema,
+  UpdateStoreBrandSchema,
   UpdateStoreDeadlineSchema,
   UpdateStoreIdleSchema,
 } from "@/lib/validation/admin";
 
 export type AdminFormState = { error?: string; success?: string };
 
+// Administration demands a password-established session — a counter PIN
+// never unlocks it, even for an admin account.
+function isFullAdmin(session: Awaited<ReturnType<typeof getRequiredSession>>): boolean {
+  return session.user.role === "ADMIN" && session.user.authMethod === "PASSWORD";
+}
+
 async function requireAdmin(): Promise<string | null> {
   const session = await getRequiredSession();
-  return session.user.role === "ADMIN" ? null : "Forbidden";
+  return isFullAdmin(session) ? null : "Forbidden";
 }
 
 async function requireAdminSession() {
   const session = await getRequiredSession();
-  return session.user.role === "ADMIN"
+  return isFullAdmin(session)
     ? ({ ok: true, session } as const)
     : ({ ok: false, error: "Forbidden" } as const);
 }
@@ -160,6 +168,39 @@ export async function setUserRoleAction(
 
   revalidatePath("/admin/users");
   return { success: `Role set to ${parsed.data.role}.` };
+}
+
+/** Set the 6-digit counter PIN for quick sign-in on shared devices. */
+export async function setUserPinAction(
+  _prev: AdminFormState | undefined,
+  formData: FormData
+): Promise<AdminFormState> {
+  const forbidden = await requireAdmin();
+  if (forbidden) return { error: forbidden };
+
+  const parsed = SetPinSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: "PIN must be exactly 6 digits." };
+
+  const result = await setUserPin({ targetId: parsed.data.userId, pin: parsed.data.pin });
+  if (!result.ok) return { error: result.error };
+
+  return { success: "PIN set." };
+}
+
+/** Chain branding: the store's primary color themes the whole app. */
+export async function updateStoreBrandAction(formData: FormData): Promise<void> {
+  const forbidden = await requireAdmin();
+  if (forbidden) return;
+
+  const parsed = UpdateStoreBrandSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return;
+
+  await prisma.store.update({
+    where: { id: parsed.data.storeId },
+    data: { brandColor: parsed.data.brandColor === "" ? null : parsed.data.brandColor.toLowerCase() },
+  });
+  revalidatePath("/admin/stores");
+  revalidatePath("/", "layout");
 }
 
 export async function resetUserPasswordAction(

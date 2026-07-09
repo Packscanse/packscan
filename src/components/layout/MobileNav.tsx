@@ -38,7 +38,7 @@ export function MobileNav({ isAdmin }: { isAdmin: boolean }) {
               aria-current={active ? "page" : undefined}
               className={cn(
                 "flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs",
-                active ? "font-semibold text-foreground" : "text-muted-foreground"
+                active ? "font-semibold text-primary" : "text-muted-foreground"
               )}
             >
               <Icon className={cn("size-5", active && "stroke-[2.5]")} />
