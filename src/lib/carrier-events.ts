@@ -103,6 +103,24 @@ export async function dispatchEventsForPackage(packageId: string): Promise<Carri
   return results;
 }
 
+/**
+ * Put dead-lettered (FAILED) or awaiting-credentials (NOT_CONFIGURED)
+ * events back in the queue — e.g. after a carrier's API credentials land.
+ */
+export async function requeueEvents(args: {
+  status: "FAILED" | "NOT_CONFIGURED";
+  carrier?: string;
+}): Promise<number> {
+  const result = await prisma.carrierEventOutbox.updateMany({
+    where: {
+      status: args.status,
+      ...(args.carrier && { carrier: args.carrier as never }),
+    },
+    data: { status: "PENDING", attempts: 0, lastError: null, nextAttemptAt: new Date() },
+  });
+  return result.count;
+}
+
 /** Cron entry point: retry everything due. Returns per-status counts. */
 export async function dispatchPendingCarrierEvents(limit = 200): Promise<Record<string, number>> {
   const due = await prisma.carrierEventOutbox.findMany({

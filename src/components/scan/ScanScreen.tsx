@@ -37,7 +37,13 @@ interface PendingScan {
 
 const SAME_CODE_DEBOUNCE_MS = 2000;
 
-export function ScanScreen({ canOverride }: { canOverride: boolean }) {
+export function ScanScreen({
+  canOverride,
+  sessionUserId,
+}: {
+  canOverride: boolean;
+  sessionUserId: string;
+}) {
   const [flow, setFlow] = useState<ScanFlow>("INBOUND_PICKUP");
   const [pendingScan, setPendingScan] = useState<PendingScan | null>(null);
   const [carrier, setCarrier] = useState<CarrierCode>("UNKNOWN");
@@ -56,7 +62,7 @@ export function ScanScreen({ canOverride }: { canOverride: boolean }) {
   const [rapidShelf, setRapidShelf] = useState("");
   const [isPending, startTransition] = useTransition();
   const lastDetection = useRef({ code: "", at: 0 });
-  const { queuedCount, syncNotices, enqueue, dismissNotices } = useOfflineScanQueue();
+  const { queuedCount, syncNotices, enqueue, dismissNotices } = useOfflineScanQueue(sessionUserId);
 
   // handleCode is mount-stable; these refs feed it the current settings.
   const flowRef = useRef(flow);
@@ -142,14 +148,16 @@ export function ScanScreen({ canOverride }: { canOverride: boolean }) {
           }));
           setPreAdviceMatched(true);
         }
-        // Rapid intake: no confirm tap for parcels we can trust — announced
-        // by the carrier, or an unambiguous high-confidence detection.
+        // Rapid intake: no confirm tap for parcels we can trust. Pickups
+        // auto-confirm only when pre-advised — otherwise they'd register
+        // with no contact info and nobody could notify the customer. The
+        // log-only flow (no notification concern) also accepts unambiguous
+        // high-confidence detections.
         const top = candidates[0];
-        if (
-          rapidRef.current &&
-          FLOW_DIRECTION[flowRef.current] === "INBOUND" &&
-          (match || top?.confidence === "high")
-        ) {
+        const trusted =
+          match !== null ||
+          (flowRef.current === "INBOUND_LOG" && top?.confidence === "high");
+        if (rapidRef.current && FLOW_DIRECTION[flowRef.current] === "INBOUND" && trusted) {
           autoConfirm({ code, method, carrier: match?.carrier ?? top!.carrier, match });
         }
       })
@@ -271,8 +279,8 @@ export function ScanScreen({ canOverride }: { canOverride: boolean }) {
                 className="h-8 w-40"
               />
               <p className="text-xs text-muted-foreground">
-                Announced or unambiguous parcels register on scan — no confirm tap. Others still
-                show the confirm card.
+                Announced (pre-advised) parcels register on scan — no confirm tap. Log-only mode
+                also auto-confirms unambiguous labels. Everything else shows the confirm card.
               </p>
             </>
           )}

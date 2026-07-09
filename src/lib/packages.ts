@@ -60,6 +60,8 @@ export interface RegisterScanArgs {
   verification?: HandoverInput;
   /** Role of the acting user — a manager override demands ADMIN. */
   actorRole?: Role;
+  /** Audit context for the scan event, e.g. offline-sync annotation. */
+  note?: string;
 }
 
 /** SENT means the carrier itself will notify; anything else needs our fallback. */
@@ -126,6 +128,7 @@ export async function registerScan(args: RegisterScanArgs): Promise<ScanOutcome>
             fromStatus: null,
             toStatus: status,
             inputMethod: args.inputMethod,
+            note: args.note,
           },
         });
         // Announced parcel arrived: close the pre-advice and link it.
@@ -191,6 +194,7 @@ export async function registerScan(args: RegisterScanArgs): Promise<ScanOutcome>
     inputMethod: args.inputMethod,
     verification: args.verification,
     actorRole: args.actorRole,
+    note: args.note,
   });
 }
 
@@ -210,6 +214,8 @@ export async function advanceStatus(args: {
   courierRef?: string;
   /** Role of the acting user — a manager override demands ADMIN. */
   actorRole?: Role;
+  /** Audit context for the scan event, e.g. offline-sync annotation. */
+  note?: string;
 }): Promise<ScanOutcome> {
   const { pkg } = args;
   const next = NEXT_STATUS[pkg.status];

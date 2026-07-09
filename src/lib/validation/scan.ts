@@ -35,6 +35,14 @@ export const ScanInputSchema = z.object({
   shelfLocation: optionalTrimmed(40),
   // Present when the scan completes a pickup handover (second submit).
   verification: HandoverInputSchema.optional(),
+  // Present when replayed from the browser's offline queue: when it was
+  // captured and who was signed in then (client claim — recorded, not trusted).
+  offline: z
+    .object({
+      queuedAt: z.number().int().positive(),
+      queuedByUserId: z.string().min(1).max(64),
+    })
+    .optional(),
 });
 
 export type ScanInput = z.infer<typeof ScanInputSchema>;

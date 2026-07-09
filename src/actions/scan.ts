@@ -31,12 +31,45 @@ export async function processScan(input: unknown): Promise<ProcessScanResult> {
     return { ok: false, error: "Invalid scan input. Check the tracking number and try again." };
   }
 
+  // Admins are store-attached like everyone else; scanning only operates on
+  // their own store. Catch the cross-store case (parcel known at another
+  // store, not at this one) instead of silently creating a duplicate here.
+  if (session.user.role === "ADMIN" && !parsed.data.verification) {
+    const trackingNumber = normalizeTrackingNumber(parsed.data.trackingNumber);
+    const [foreign, local] = await Promise.all([
+      prisma.package.findFirst({
+        where: { trackingNumber, storeId: { not: session.user.storeId } },
+        select: { store: { select: { name: true, code: true } } },
+      }),
+      prisma.package.findFirst({
+        where: { trackingNumber, storeId: session.user.storeId },
+        select: { id: true },
+      }),
+    ]);
+    if (foreign && !local) {
+      return {
+        ok: false,
+        error: `This parcel is registered at ${foreign.store.name} (${foreign.store.code}) — manage it from its package page, not by scanning here.`,
+      };
+    }
+  }
+
+  // Replayed from the offline queue: annotate the audit event with when it
+  // was captured, and flag it when a different account ends up syncing it.
+  const offlineNote = parsed.data.offline
+    ? `Offline scan captured ${new Date(parsed.data.offline.queuedAt).toISOString()}` +
+      (parsed.data.offline.queuedByUserId !== session.user.id
+        ? " while a different user was signed in; attributed to the syncing account"
+        : "")
+    : undefined;
+
   // storeId/userId/role always come from the session — never from the client.
   const outcome = await registerScan({
     ...parsed.data,
     storeId: session.user.storeId,
     userId: session.user.id,
     actorRole: session.user.role,
+    note: offlineNote,
   });
 
   if (!outcome.ok) {

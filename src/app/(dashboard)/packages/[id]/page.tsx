@@ -222,7 +222,7 @@ export default async function PackageDetailPage({
               {event.courierRef && (
                 <p className="text-muted-foreground">Courier ref: {event.courierRef}</p>
               )}
-              {event.note && <p className="text-muted-foreground">Reason: {event.note}</p>}
+              {event.note && <p className="text-muted-foreground">Note: {event.note}</p>}
             </div>
           ))}
         </CardContent>

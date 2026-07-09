@@ -11,8 +11,9 @@ Unified parcel scanning for stores acting as pickup/drop-off points for **DHL, P
 - **Pre-advice**: carriers' announced-parcel manifests live in `PreAdvice` (paste-import on the Expected page until API feeds exist). Scanning an announced parcel pre-fills recipient and exact carrier; the Expected page shows announced-but-missing parcels the same day.
 - **ID scan-to-verify**: the handover scanner recognizes ID documents (AAMVA PDF417 driver's licenses, ICAO MRZ passports/ID cards) and flips the ID check automatically — document contents are classified and **discarded, never stored** (`classifyHandoverScan`).
 - **Carrier-first event reporting with at-least-once delivery**: every lifecycle event (`ARRIVAL`, `PICKED_UP` with POD summary, `ACCEPTED_OUTBOUND`, `RETURNED`) is written to the `CarrierEventOutbox` **in the same transaction as the scan event**, attempted immediately, and retried with exponential backoff by `npm run dispatch:events` (cron it) until sent, `NOT_CONFIGURED` (re-queueable once credentials arrive), or dead-lettered after 20 attempts. The direct SMS/email stub is only the arrival/pickup fallback while carrier APIs are unconfigured.
-- **Rapid intake**: a toggle on the Scan screen auto-confirms announced or unambiguous high-confidence parcels straight off the scanner with a sticky batch shelf — no tap per parcel; anything uncertain still gets the confirm card.
-- **Offline tolerance**: scans that fail at the network level are queued in the browser (`localStorage`) and replayed automatically when the connection returns; a banner shows the pending count and any replays that need attention.
+- **Rapid intake**: a toggle on the Scan screen auto-confirms parcels straight off the scanner with a sticky batch shelf — pre-advised parcels for the pickup flow (so nothing registers without contact info), plus unambiguous labels in log-only mode; anything uncertain still gets the confirm card.
+- **Offline tolerance**: scans that fail at the network level are queued in the browser (`localStorage`) and replayed automatically when the connection returns; a banner shows the pending count and any replays that need attention. Each item is stamped with the queuing user and expires after 72 h; the audit event notes when a scan was captured offline (and when a different account synced it).
+- **Operations dashboard** (`/admin/operations`): today's volumes per store and carrier, shelf aging (overdue pickups + returns awaiting driver collection), and carrier-event outbox health with re-queue controls for dead-lettered and awaiting-credentials events.
 - **Login rate limiting** per email (10/15 min) and per client IP (30/15 min) with a bounded in-memory map; CI (GitHub Actions) runs typecheck, lint, and all three suites against a Postgres service container.
 - **PII retention**: `npm run purge:pii` (cron it) scrubs customer/sender contact data from terminal packages, their notifications, and consumed pre-advice after 90 days (`PII_RETENTION_DAYS`). Audit history survives.
 - **Carrier auto-detection** from tracking-number format (UPU S10 checksums, carrier prefix rules) with confidence ranking; manual override is always one tap away. Ambiguous formats (e.g. the `3S` prefix shared by PostNL and DHL Parcel Benelux) surface all candidates.
@@ -50,7 +51,7 @@ Log in with the seeded credentials from the seed output. Camera scanning require
 
 ```bash
 npm run test:detect   # detection, pickup policies, ID-scan classification, rate limiter (offline, 33 checks)
-npm run test:scan     # scan workflows, handover gating, overrides, returns, pre-advice, outbox, races (39 checks, cleans up after itself)
+npm run test:scan     # scan workflows, handover gating, overrides, returns, pre-advice, outbox, races (41 checks, cleans up after itself)
 npm run test:users    # user lifecycle rules + lockout guards against the DB (11 checks, cleans up after itself)
 ```
 

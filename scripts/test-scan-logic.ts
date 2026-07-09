@@ -4,6 +4,7 @@
  */
 import { prisma } from "../src/lib/prisma";
 import { advanceStatus, cancelPackage, markForReturn, registerScan } from "../src/lib/packages";
+import { requeueEvents } from "../src/lib/carrier-events";
 
 const TEST_PREFIX = "PKSTEST";
 let failures = 0;
@@ -41,9 +42,18 @@ async function main() {
     inputMethod: "MANUAL_ENTRY" as const,
   };
 
-  // --- Flow 1: plain inventory log ---
-  const log1 = await registerScan({ ...base, trackingNumber: `${TEST_PREFIX}LOG1`, flow: "INBOUND_LOG" });
+  // --- Flow 1: plain inventory log (with an offline-sync audit note) ---
+  const log1 = await registerScan({
+    ...base,
+    trackingNumber: `${TEST_PREFIX}LOG1`,
+    flow: "INBOUND_LOG",
+    note: "Offline scan captured 2026-07-05T08:00:00.000Z",
+  });
   check("plain log: first scan creates LOGGED", log1.ok && log1.kind === "created" && log1.package.status === "LOGGED");
+  if (log1.ok) {
+    const createEvent = await prisma.scanEvent.findFirst({ where: { packageId: log1.package.id } });
+    check("audit: note recorded on the create event", createEvent?.note?.startsWith("Offline scan captured") === true);
+  }
   const log2 = await registerScan({ ...base, trackingNumber: `${TEST_PREFIX}LOG1`, flow: "INBOUND_LOG" });
   check("plain log: rescan rejected as terminal", !log2.ok && log2.code === "TERMINAL_STATUS");
 
@@ -293,6 +303,29 @@ async function main() {
     outbox.length > 0 && outbox.every((e) => e.status === "NOT_CONFIGURED"),
     outbox.map((e) => `${e.eventType}:${e.status}`).join(", ")
   );
+
+  // Dead-lettered events can be re-queued (same path backfills events once
+  // a carrier's API credentials arrive).
+  const someEvent = await prisma.carrierEventOutbox.findFirst({
+    where: { package: { trackingNumber: { startsWith: TEST_PREFIX } } },
+  });
+  if (someEvent) {
+    await prisma.carrierEventOutbox.update({
+      where: { id: someEvent.id },
+      data: { status: "FAILED", attempts: 20, lastError: "simulated dead-letter" },
+    });
+    const requeued = await requeueEvents({ status: "FAILED" });
+    const after = await prisma.carrierEventOutbox.findUniqueOrThrow({ where: { id: someEvent.id } });
+    check(
+      "outbox: dead-lettered event re-queued with reset attempts",
+      requeued >= 1 && after.status === "PENDING" && after.attempts === 0 && after.lastError === null
+    );
+    // Leave the table clean for the earlier all-NOT_CONFIGURED invariant on reruns.
+    await prisma.carrierEventOutbox.update({
+      where: { id: someEvent.id },
+      data: { status: "NOT_CONFIGURED" },
+    });
+  }
 
   // --- Concurrent duplicate scan: the create race resolves gracefully ---
   const [race1, race2] = await Promise.all([
