@@ -80,6 +80,18 @@ expectClassify("carrier-app QR payload", "PNQR-8f3a2b1c-PICKUP", "CODE");
 expectClassify("plain numeric pickup code", "482913", "CODE");
 expectClassify("tracking-like code starting with I", "ID12345678", "CODE");
 
+// Dwell-time formatting (pure).
+import { formatDuration } from "../src/lib/duration";
+function expectDuration(label: string, ms: number, expected: string) {
+  const actual = formatDuration(ms);
+  const ok = actual === expected;
+  if (!ok) failures++;
+  console.log(`${ok ? "PASS" : "FAIL"}  duration ${label} → ${actual}${ok ? "" : ` (expected ${expected})`}`);
+}
+expectDuration("30 min", 30 * 60_000, "30 min");
+expectDuration("5.5 hours", 5.5 * 3_600_000, "5.5 h");
+expectDuration("3 days", 72 * 3_600_000, "3 d");
+
 // Store logo upload validation (pure).
 import { LOGO_MAX_BYTES, validateLogo } from "../src/lib/branding";
 function expectLogo(label: string, ok: boolean) {

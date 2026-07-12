@@ -10,7 +10,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { CARRIER_LABELS } from "@/lib/carriers";
+import { formatDuration } from "@/lib/duration";
 import { PackageStatusBadge } from "./PackageStatusBadge";
+
+/** How long a still-waiting parcel has been on the shelf; null once handled. */
+function waitingFor(pkg: Package): string | null {
+  if (pkg.status !== "AWAITING_PICKUP" && pkg.status !== "RETURN_PENDING") return null;
+  return formatDuration(Date.now() - pkg.createdAt.getTime());
+}
 
 export function PackageTable({ packages }: { packages: Package[] }) {
   if (packages.length === 0) {
@@ -49,6 +56,7 @@ export function PackageTable({ packages }: { packages: Package[] }) {
             <p className="text-xs text-muted-foreground">
               {pkg.direction === "INBOUND" ? "Inbound" : "Outbound"} · updated{" "}
               {format(pkg.updatedAt, "MMM d, HH:mm")}
+              {waitingFor(pkg) && ` · waiting ${waitingFor(pkg)}`}
             </p>
           </Link>
         ))}
@@ -63,6 +71,7 @@ export function PackageTable({ packages }: { packages: Package[] }) {
               <TableHead>Direction</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Shelf</TableHead>
+              <TableHead>Waiting</TableHead>
               <TableHead>Customer</TableHead>
               <TableHead>Updated</TableHead>
             </TableRow>
@@ -81,6 +90,7 @@ export function PackageTable({ packages }: { packages: Package[] }) {
                   <PackageStatusBadge status={pkg.status} />
                 </TableCell>
                 <TableCell className="font-semibold">{pkg.shelfLocation ?? "—"}</TableCell>
+                <TableCell className="text-muted-foreground">{waitingFor(pkg) ?? "—"}</TableCell>
                 <TableCell>{pkg.customerName ?? "—"}</TableCell>
                 <TableCell className="text-muted-foreground">
                   {format(pkg.updatedAt, "MMM d, HH:mm")}

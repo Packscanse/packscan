@@ -12,6 +12,7 @@ import {
 import { PackageStatusBadge } from "@/components/packages/PackageStatusBadge";
 import { HandoverForm } from "@/components/packages/HandoverForm";
 import { CARRIER_LABELS } from "@/lib/carriers";
+import { formatDuration } from "@/lib/duration";
 import { ID_TYPE_LABELS } from "@/lib/verification";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,16 @@ export default async function PackageDetailPage({
 
   const next = NEXT_STATUS[pkg.status];
 
+  // Dwell: arrival → handover (or "so far" while the parcel still waits).
+  const handedOver = pkg.scanEvents.find((e) =>
+    ["PICKED_UP", "RETURNED_TO_CARRIER", "HANDED_OFF"].includes(e.toStatus)
+  );
+  const dwellMs = handedOver
+    ? handedOver.scannedAt.getTime() - pkg.createdAt.getTime()
+    : ["AWAITING_PICKUP", "RETURN_PENDING", "PENDING_HANDOFF"].includes(pkg.status)
+      ? Date.now() - pkg.createdAt.getTime()
+      : null;
+
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -74,6 +85,13 @@ export default async function PackageDetailPage({
             <span className="text-muted-foreground">Registered: </span>
             {format(pkg.createdAt, "MMM d yyyy, HH:mm")}
           </p>
+          {dwellMs !== null && (
+            <p>
+              <span className="text-muted-foreground">Time on shelf: </span>
+              {formatDuration(dwellMs)}
+              {!handedOver && " (still waiting)"}
+            </p>
+          )}
           {pkg.customerName && (
             <p>
               <span className="text-muted-foreground">

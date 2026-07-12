@@ -2,6 +2,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { getRequiredAdminSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { formatDuration } from "@/lib/duration";
 import { CARRIER_LABELS, CARRIER_PROVIDERS } from "@/lib/carriers";
 import { dispatchNowAction, requeueOutboxAction } from "@/actions/operations";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui/table";
 
 const RETURN_PENDING_AGE_DAYS = 3;
+const PERIOD_DAYS = 30;
 
 /**
  * The end-of-day picture across all stores: today's volumes, what's aging
@@ -26,6 +28,7 @@ export default async function OperationsPage() {
 
   const startOfDay = new Date(new Date().setHours(0, 0, 0, 0));
   const returnAgeCutoff = new Date(Date.now() - RETURN_PENDING_AGE_DAYS * 24 * 60 * 60 * 1000);
+  const periodStart = new Date(Date.now() - PERIOD_DAYS * 24 * 60 * 60 * 1000);
 
   const [stores, receivedToday, completedToday, outboxByStatus, failedEvents, oldestPending] =
     await Promise.all([
@@ -60,21 +63,54 @@ export default async function OperationsPage() {
       }),
     ]);
 
+  // Last-30-days volumes and dwell: what came in per carrier, what went
+  // out, and how long parcels sat before pickup (avg + longest).
+  const [receivedPeriod, pickedUpPeriod] = await Promise.all([
+    prisma.package.groupBy({
+      by: ["storeId", "carrier"],
+      where: { createdAt: { gte: periodStart }, direction: "INBOUND" },
+      _count: { _all: true },
+    }),
+    prisma.scanEvent.findMany({
+      where: { toStatus: "PICKED_UP", scannedAt: { gte: periodStart } },
+      select: { storeId: true, scannedAt: true, package: { select: { createdAt: true } } },
+    }),
+  ]);
+
   // Shelf aging is per-store because deadlines are per-store.
   const aging = await Promise.all(
     stores.map(async (store) => {
       const deadlineCutoff = new Date(Date.now() - store.pickupDeadlineDays * 24 * 60 * 60 * 1000);
-      const [overdue, returnAging] = await Promise.all([
+      const [overdue, returnAging, waiting] = await Promise.all([
         prisma.package.count({
           where: { storeId: store.id, status: "AWAITING_PICKUP", createdAt: { lt: deadlineCutoff } },
         }),
         prisma.package.count({
           where: { storeId: store.id, status: "RETURN_PENDING", updatedAt: { lt: returnAgeCutoff } },
         }),
+        prisma.package.findMany({
+          where: { storeId: store.id, status: "AWAITING_PICKUP" },
+          select: { createdAt: true },
+        }),
       ]);
-      return { store, overdue, returnAging };
+      const now = Date.now();
+      const ages = waiting.map((p) => now - p.createdAt.getTime());
+      const avgWaitMs = ages.length ? ages.reduce((a, b) => a + b, 0) / ages.length : null;
+      const oldestWaitMs = ages.length ? Math.max(...ages) : null;
+      return { store, overdue, returnAging, waitingCount: ages.length, avgWaitMs, oldestWaitMs };
     })
   );
+
+  // Per-store 30-day rollup: received per carrier (with share) + pickup dwell.
+  const periodFor = (storeId: string) => {
+    const received = receivedPeriod.filter((r) => r.storeId === storeId);
+    const receivedTotal = received.reduce((sum, r) => sum + r._count._all, 0);
+    const dwells = pickedUpPeriod
+      .filter((e) => e.storeId === storeId)
+      .map((e) => e.scannedAt.getTime() - e.package.createdAt.getTime());
+    const avgDwellMs = dwells.length ? dwells.reduce((a, b) => a + b, 0) / dwells.length : null;
+    return { received, receivedTotal, pickedUp: dwells.length, avgDwellMs };
+  };
 
   const receivedFor = (storeId: string) =>
     receivedToday.filter((r) => r.storeId === storeId);
@@ -135,20 +171,78 @@ export default async function OperationsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Shelf aging</CardTitle>
+          <CardTitle className="text-base">
+            Last {PERIOD_DAYS} days — volumes, carrier share, time to pickup
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Store</TableHead>
+                <TableHead>Received (by carrier)</TableHead>
+                <TableHead>Picked up</TableHead>
+                <TableHead>Avg time to pickup</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {stores.map((store) => {
+                const p = periodFor(store.id);
+                return (
+                  <TableRow key={store.id}>
+                    <TableCell>
+                      {store.name} <span className="text-muted-foreground">({store.code})</span>
+                    </TableCell>
+                    <TableCell>
+                      {p.receivedTotal}
+                      {p.receivedTotal > 0 && (
+                        <span className="text-muted-foreground">
+                          {" — "}
+                          {p.received
+                            .slice()
+                            .sort((a, b) => b._count._all - a._count._all)
+                            .map(
+                              (r) =>
+                                `${CARRIER_LABELS[r.carrier]} ${r._count._all} (${Math.round(
+                                  (r._count._all / p.receivedTotal) * 100
+                                )}%)`
+                            )
+                            .join(" · ")}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell>{p.pickedUp}</TableCell>
+                    <TableCell>
+                      {p.avgDwellMs === null ? "—" : formatDuration(p.avgDwellMs)}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Shelf right now</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-2 text-sm">
-          {aging.map(({ store, overdue, returnAging }) => (
+          {aging.map(({ store, overdue, returnAging, waitingCount, avgWaitMs, oldestWaitMs }) => (
             <p key={store.id}>
               <span className="text-muted-foreground">
                 {store.name} ({store.code}):{" "}
               </span>
-              {overdue > 0 ? (
-                <Link href="/packages?overdue=1" className="font-medium text-destructive underline-offset-2 hover:underline">
-                  {overdue} overdue for return ({store.pickupDeadlineDays}-day deadline)
-                </Link>
-              ) : (
-                "no overdue pickups"
+              {waitingCount === 0
+                ? "nothing awaiting pickup"
+                : `${waitingCount} awaiting pickup · avg wait ${formatDuration(avgWaitMs!)} · oldest ${formatDuration(oldestWaitMs!)}`}
+              {overdue > 0 && (
+                <>
+                  {" · "}
+                  <Link href="/packages?overdue=1" className="font-medium text-destructive underline-offset-2 hover:underline">
+                    {overdue} overdue for return ({store.pickupDeadlineDays}-day deadline)
+                  </Link>
+                </>
               )}
               {returnAging > 0 &&
                 ` · ${returnAging} return(s) awaiting driver collection for over ${RETURN_PENDING_AGE_DAYS} days`}
