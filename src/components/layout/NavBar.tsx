@@ -7,9 +7,11 @@ import { Button } from "@/components/ui/button";
 export function NavBar({
   session,
   storeName,
+  storeLogo,
 }: {
   session: Session;
   storeName: string;
+  storeLogo: string | null;
 }) {
   const isAdmin = session.user.role === "ADMIN";
   // Administration needs a password session; hide the entry point for PIN
@@ -19,8 +21,14 @@ export function NavBar({
   return (
     <header className="border-b bg-background">
       <div className="mx-auto flex h-14 max-w-5xl items-center gap-4 px-4">
-        <Link href="/scan" className="font-semibold tracking-tight">
-          Packscan
+        {/* Chain branding: the store's own logo fronts the app. */}
+        <Link href="/scan" className="flex shrink-0 items-center gap-2 font-semibold tracking-tight">
+          {storeLogo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={storeLogo} alt={storeName} className="h-8 w-auto max-w-36 object-contain" />
+          ) : (
+            "Packscan"
+          )}
         </Link>
         {/* Desktop nav; handhelds use the bottom tab bar instead. */}
         <nav className="hidden items-center gap-1 text-sm sm:flex">

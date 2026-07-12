@@ -21,6 +21,25 @@ export function relativeLuminance(hexColor: string): number {
   );
 }
 
+/**
+ * Store logos are stored as data URLs in the DB (no external file storage
+ * needed); rendered only via <img>, where SVG scripts never execute.
+ */
+export const LOGO_MAX_BYTES = 256 * 1024;
+export const LOGO_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/svg+xml",
+  "image/webp",
+]);
+
+export function validateLogo(type: string, size: number): string | null {
+  if (!LOGO_TYPES.has(type)) return "Logo must be PNG, JPEG, SVG, or WebP.";
+  if (size === 0) return "The file is empty.";
+  if (size > LOGO_MAX_BYTES) return "Logo must be 256 KB or smaller.";
+  return null;
+}
+
 export function brandStyle(brandColor: string | null): CSSProperties | undefined {
   if (!brandColor || !/^#[0-9a-f]{6}$/i.test(brandColor)) return undefined;
   const foreground = relativeLuminance(brandColor) > 0.4 ? "#111111" : "#ffffff";

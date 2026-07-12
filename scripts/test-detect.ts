@@ -80,6 +80,18 @@ expectClassify("carrier-app QR payload", "PNQR-8f3a2b1c-PICKUP", "CODE");
 expectClassify("plain numeric pickup code", "482913", "CODE");
 expectClassify("tracking-like code starting with I", "ID12345678", "CODE");
 
+// Store logo upload validation (pure).
+import { LOGO_MAX_BYTES, validateLogo } from "../src/lib/branding";
+function expectLogo(label: string, ok: boolean) {
+  if (!ok) failures++;
+  console.log(`${ok ? "PASS" : "FAIL"}  ${label}`);
+}
+expectLogo("logo: PNG within limit accepted", validateLogo("image/png", 10_000) === null);
+expectLogo("logo: SVG accepted", validateLogo("image/svg+xml", 5_000) === null);
+expectLogo("logo: GIF rejected", validateLogo("image/gif", 10_000) !== null);
+expectLogo("logo: oversize rejected", validateLogo("image/png", LOGO_MAX_BYTES + 1) !== null);
+expectLogo("logo: empty file rejected", validateLogo("image/png", 0) !== null);
+
 // Failed-login rate limiter (pure in-memory): per-email and per-IP scopes.
 import { clearFailures, isRateLimited, recordFailure } from "../src/lib/rate-limit";
 function expectLimit(label: string, ok: boolean) {

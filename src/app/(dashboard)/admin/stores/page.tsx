@@ -6,6 +6,7 @@ import {
   updateStoreIdleAction,
 } from "@/actions/admin";
 import { CreateStoreForm } from "@/components/admin/CreateStoreForm";
+import { StoreLogoForm } from "@/components/admin/StoreLogoForm";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -41,6 +42,7 @@ export default async function AdminStoresPage() {
                 <TableHead>Idle logout</TableHead>
                 <TableHead>Pickup deadline</TableHead>
                 <TableHead>Brand color</TableHead>
+                <TableHead>Logo</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -113,6 +115,13 @@ export default async function AdminStoresPage() {
                         </form>
                       )}
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    <StoreLogoForm
+                      storeId={store.id}
+                      storeName={store.name}
+                      logoData={store.logoData}
+                    />
                   </TableCell>
                 </TableRow>
               ))}

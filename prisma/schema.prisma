@@ -103,6 +103,10 @@ model Store {
   // Chain branding: the store's primary color (hex, e.g. ICA red) themes
   // the app for everyone signed in to this store. Null = default theme.
   brandColor String?
+  // Store logo as a data URL (PNG/JPEG/SVG/WebP, ≤256KB) shown in the top
+  // bar. DB-stored so branding needs no external file storage; move to a
+  // CDN URL later without changing consumers.
+  logoData   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

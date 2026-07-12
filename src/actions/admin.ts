@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { getRequiredSession } from "@/lib/session";
 import { resetUserPassword, setUserActive, setUserPin, setUserRole } from "@/lib/users";
+import { validateLogo } from "@/lib/branding";
 import {
   CreateStoreSchema,
   CreateUserSchema,
@@ -185,6 +186,40 @@ export async function setUserPinAction(
   if (!result.ok) return { error: result.error };
 
   return { success: "PIN set." };
+}
+
+/** Chain branding: store logo uploaded as a DB-stored data URL (≤256KB). */
+export async function updateStoreLogoAction(
+  _prev: AdminFormState | undefined,
+  formData: FormData
+): Promise<AdminFormState> {
+  const forbidden = await requireAdmin();
+  if (forbidden) return { error: forbidden };
+
+  const storeId = formData.get("storeId");
+  if (typeof storeId !== "string" || !storeId) return { error: "Invalid store." };
+
+  const remove = formData.get("remove") === "true";
+  if (remove) {
+    await prisma.store.update({ where: { id: storeId }, data: { logoData: null } });
+    revalidatePath("/admin/stores");
+    revalidatePath("/", "layout");
+    return { success: "Logo removed." };
+  }
+
+  const file = formData.get("logo");
+  if (!(file instanceof File)) return { error: "Choose a logo file first." };
+  const invalid = validateLogo(file.type, file.size);
+  if (invalid) return { error: invalid };
+
+  const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
+  await prisma.store.update({
+    where: { id: storeId },
+    data: { logoData: `data:${file.type};base64,${base64}` },
+  });
+  revalidatePath("/admin/stores");
+  revalidatePath("/", "layout");
+  return { success: "Logo updated." };
 }
 
 /** Chain branding: the store's primary color themes the whole app. */
