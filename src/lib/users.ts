@@ -80,6 +80,23 @@ export async function resetUserPassword(args: {
   return { ok: true };
 }
 
+/** Move a user to another store; takes effect on live sessions within ~5 min via the JWT re-check. */
+export async function setUserStore(args: {
+  targetId: string;
+  storeId: string;
+}): Promise<UserAdminResult> {
+  const [target, store] = await Promise.all([
+    prisma.user.findUnique({ where: { id: args.targetId } }),
+    prisma.store.findUnique({ where: { id: args.storeId } }),
+  ]);
+  if (!target) return { ok: false, error: "User not found." };
+  if (!store) return { ok: false, error: "Store not found." };
+  if (target.storeId === args.storeId) return { ok: true };
+
+  await prisma.user.update({ where: { id: target.id }, data: { storeId: store.id } });
+  return { ok: true };
+}
+
 /**
  * Set (or clear) the 6-digit counter PIN. A PIN-established session can
  * only scan — administration always demands the password.

@@ -7,6 +7,7 @@ import {
   setUserActiveAction,
   setUserPinAction,
   setUserRoleAction,
+  setUserStoreAction,
   type AdminFormState,
 } from "@/actions/admin";
 import { Button } from "@/components/ui/button";
@@ -29,16 +30,21 @@ export function UserActions({
   role,
   active,
   isSelf,
+  storeId,
+  stores,
 }: {
   userId: string;
   role: Role;
   active: boolean;
   isSelf: boolean;
+  storeId: string;
+  stores: { id: string; name: string; code: string }[];
 }) {
   const [activeState, activeAction, activePending] = useActionState(setUserActiveAction, undefined);
   const [roleState, roleAction, rolePending] = useActionState(setUserRoleAction, undefined);
   const [pwState, pwAction, pwPending] = useActionState(resetUserPasswordAction, undefined);
   const [pinState, pinAction, pinPending] = useActionState(setUserPinAction, undefined);
+  const [storeState, storeAction, storePending] = useActionState(setUserStoreAction, undefined);
 
   return (
     <div className="grid max-w-xs gap-2">
@@ -93,6 +99,31 @@ export function UserActions({
         </Button>
       </form>
       <StateLine state={pwState} />
+
+      {stores.length > 1 && (
+        <>
+          <form action={storeAction} className="flex items-center gap-2">
+            <input type="hidden" name="userId" value={userId} />
+            <select
+              name="storeId"
+              key={storeId}
+              defaultValue={storeId}
+              aria-label="Store"
+              className="h-8 max-w-40 rounded-md border border-input bg-transparent px-2 text-sm"
+            >
+              {stores.map((store) => (
+                <option key={store.id} value={store.id}>
+                  {store.name} ({store.code})
+                </option>
+              ))}
+            </select>
+            <Button type="submit" variant="outline" size="sm" disabled={storePending}>
+              {storePending ? "Moving…" : "Move"}
+            </Button>
+          </form>
+          <StateLine state={storeState} />
+        </>
+      )}
 
       <form action={pinAction} className="flex items-center gap-2">
         <input type="hidden" name="userId" value={userId} />

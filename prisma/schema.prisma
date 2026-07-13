@@ -204,6 +204,9 @@ model HandoverVerification {
   // captured by scan (or typed). Audit evidence in v1; validated against the
   // carrier's API once credentials exist (CarrierProvider seam).
   presentedCode String?
+  // True once the carrier's API confirmed the presented code (Phase 2);
+  // false means captured-as-evidence only.
+  codeValidated Boolean @default(false)
   idChecked     Boolean @default(false)
   idType        IdType?
   // Set when someone other than the addressee collects (proxy pickup).

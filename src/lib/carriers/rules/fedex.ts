@@ -25,6 +25,7 @@ export const fedexProvider: CarrierProvider = {
   reportPickedUp: notConfigured,
   reportAcceptedOutbound: notConfigured,
   reportReturned: notConfigured,
+  verifyPickupCode: notConfigured,
 
   async lookupTrackingDetails() {
     throw new Error("FEDEX tracking API lookup not implemented (no credentials configured)");

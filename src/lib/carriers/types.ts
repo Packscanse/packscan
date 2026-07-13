@@ -51,6 +51,15 @@ export interface PickupProof {
   override: boolean;
 }
 
+/**
+ * Carrier's verdict on a presented pickup code. VALID/INVALID once the
+ * carrier API is live; NOT_CONFIGURED means the code is recorded as
+ * evidence only and the handover proceeds on the local policy.
+ */
+export interface CodeVerification {
+  status: "VALID" | "INVALID" | "NOT_CONFIGURED";
+}
+
 export interface CarrierProvider {
   readonly code: CarrierCode;
   /** Handover verification this carrier mandates at pickup. */
@@ -70,6 +79,12 @@ export interface CarrierProvider {
   reportPickedUp(trackingNumber: string, proof: PickupProof): Promise<CarrierEventReport>;
   reportAcceptedOutbound(trackingNumber: string): Promise<CarrierEventReport>;
   reportReturned(trackingNumber: string): Promise<CarrierEventReport>;
+  /**
+   * Validate the pickup code the customer presented against the carrier.
+   * INVALID blocks the handover; NOT_CONFIGURED (no credentials yet) lets
+   * it proceed with the code captured as evidence only.
+   */
+  verifyPickupCode(trackingNumber: string, code: string): Promise<CodeVerification>;
   /**
    * Seam for real carrier tracking APIs. Not implemented in v1 — each provider
    * throws until API credentials exist and a real implementation is dropped in.

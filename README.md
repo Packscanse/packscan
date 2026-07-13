@@ -53,16 +53,16 @@ Log in with the seeded credentials from the seed output. Camera scanning require
 ## Verification scripts
 
 ```bash
-npm run test:detect   # detection, pickup policies, ID-scan classification, rate limiter (offline, 33 checks)
-npm run test:scan     # scan workflows, handover gating, overrides, returns, pre-advice, outbox, races (41 checks, cleans up after itself)
-npm run test:users    # user lifecycle rules + lockout guards against the DB (11 checks, cleans up after itself)
+npm run test:detect   # detection, pickup policies, ID-scan classification, rate limiter, pure helpers (offline, 41 checks)
+npm run test:scan     # scan workflows, handover gating, overrides, returns, pre-advice, code validation, outbox, races (44 checks, cleans up after itself)
+npm run test:users    # user lifecycle rules, lockout guards, PINs, store moves (17 checks, cleans up after itself)
 ```
 
 ## Architecture notes
 
 - `src/lib/status.ts` — the status state machine; both scanning and detail-page buttons go through it.
 - `src/lib/packages.ts#registerScan` — single entry point for every scan: first scan creates, rescan advances (pickup collection, handoff completion), terminal states reject.
-- `src/lib/verification.ts#checkHandover` — pure gate for AWAITING_PICKUP → PICKED_UP, driven by the carrier's `pickupPolicy`; the UI checklist (`HandoverPanel`) mirrors it but the server re-validates. Captured carrier-app codes are audit evidence in v1; validating them (and pushing proof-of-delivery) goes through the `CarrierProvider` seam once API credentials exist.
+- `src/lib/verification.ts#checkHandover` — pure gate for AWAITING_PICKUP → PICKED_UP, driven by the carrier's `pickupPolicy`; the UI checklist (`HandoverPanel`) mirrors it but the server re-validates. The presented code is additionally run through `CarrierProvider.verifyPickupCode` — with credentials configured, an INVALID verdict blocks the handover and VALID stamps `codeValidated` on the proof; NOT_CONFIGURED (today) records the code as evidence only. Implementing a carrier = filling in that provider's five API methods (`verifyPickupCode` + four `report*` events); see `.env.example` for the credential slots.
 - `src/lib/carriers/` — pure detection rules per carrier; `detectCarrierCandidates()` runs client-side.
 - **Security boundary**: clerk-level Server Actions never accept a `storeId` from the client — it always comes from the session (`src/lib/session.ts`).
 - Production build: stop the dev server first (`next build` and `next dev` share `.next`).

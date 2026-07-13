@@ -6,7 +6,7 @@
  */
 import bcrypt from "bcryptjs";
 import { prisma } from "../src/lib/prisma";
-import { resetUserPassword, setUserActive, setUserPin, setUserRole } from "../src/lib/users";
+import { resetUserPassword, setUserActive, setUserPin, setUserRole, setUserStore } from "../src/lib/users";
 
 const TEST_EMAILS = ["ua-admin1@pkstest.local", "ua-admin2@pkstest.local", "ua-clerk1@pkstest.local"];
 let failures = 0;
@@ -93,6 +93,18 @@ async function main() {
     "password: reset produces a hash matching the new password",
     reset.ok && (await bcrypt.compare("brand-new-password", clerkHash.passwordHash))
   );
+
+  // --- Move between stores ---
+  const otherStore = await prisma.store.findFirst({ where: { code: { not: "DEMO-01" } } });
+  if (otherStore) {
+    const moved = await setUserStore({ targetId: clerk1.id, storeId: otherStore.id });
+    const afterMove = await prisma.user.findUniqueOrThrow({ where: { id: clerk1.id } });
+    check("store move: user reassigned", moved.ok && afterMove.storeId === otherStore.id);
+    const back = await setUserStore({ targetId: clerk1.id, storeId: store.id });
+    check("store move: moved back", back.ok);
+  }
+  const badStore = await setUserStore({ targetId: clerk1.id, storeId: "nonexistent" });
+  check("store move: unknown store rejected", !badStore.ok);
 
   // --- Counter PIN ---
   const badPin = await setUserPin({ targetId: clerk1.id, pin: "12345" });

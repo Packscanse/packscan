@@ -68,6 +68,8 @@ export default async function AdminUsersPage() {
                       role={user.role}
                       active={user.active}
                       isSelf={user.id === session.user.id}
+                      storeId={user.storeId}
+                      stores={stores}
                     />
                   </TableCell>
                 </TableRow>

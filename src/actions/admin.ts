@@ -5,7 +5,13 @@ import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { getRequiredSession } from "@/lib/session";
-import { resetUserPassword, setUserActive, setUserPin, setUserRole } from "@/lib/users";
+import {
+  resetUserPassword,
+  setUserActive,
+  setUserPin,
+  setUserRole,
+  setUserStore,
+} from "@/lib/users";
 import { validateLogo } from "@/lib/branding";
 import {
   CreateStoreSchema,
@@ -14,8 +20,10 @@ import {
   SetPinSchema,
   SetUserActiveSchema,
   SetUserRoleSchema,
+  SetUserStoreSchema,
   UpdateStoreBrandSchema,
   UpdateStoreDeadlineSchema,
+  UpdateStoreDetailsSchema,
   UpdateStoreIdleSchema,
 } from "@/lib/validation/admin";
 
@@ -169,6 +177,47 @@ export async function setUserRoleAction(
 
   revalidatePath("/admin/users");
   return { success: `Role set to ${parsed.data.role}.` };
+}
+
+/** Edit store name/address after creation. */
+export async function updateStoreDetailsAction(
+  _prev: AdminFormState | undefined,
+  formData: FormData
+): Promise<AdminFormState> {
+  const forbidden = await requireAdmin();
+  if (forbidden) return { error: forbidden };
+
+  const parsed = UpdateStoreDetailsSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  await prisma.store.update({
+    where: { id: parsed.data.storeId },
+    data: { name: parsed.data.name, address: parsed.data.address ?? null },
+  });
+  revalidatePath("/admin/stores");
+  revalidatePath("/", "layout");
+  return { success: "Store updated." };
+}
+
+/** Move a user to another store. */
+export async function setUserStoreAction(
+  _prev: AdminFormState | undefined,
+  formData: FormData
+): Promise<AdminFormState> {
+  const forbidden = await requireAdmin();
+  if (forbidden) return { error: forbidden };
+
+  const parsed = SetUserStoreSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: "Invalid input" };
+
+  const result = await setUserStore({
+    targetId: parsed.data.userId,
+    storeId: parsed.data.storeId,
+  });
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath("/admin/users");
+  return { success: "User moved." };
 }
 
 /** Set the 6-digit counter PIN for quick sign-in on shared devices. */

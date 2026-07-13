@@ -58,6 +58,20 @@ export const ResetPasswordSchema = z.object({
   password: z.string().min(8).max(128),
 });
 
+export const SetUserStoreSchema = z.object({
+  userId: z.string().min(1),
+  storeId: z.string().min(1),
+});
+
+export const UpdateStoreDetailsSchema = z.object({
+  storeId: z.string().min(1),
+  name: z.string().trim().min(2).max(120),
+  address: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().trim().max(200).optional()
+  ),
+});
+
 export const SetPinSchema = z.object({
   userId: z.string().min(1),
   pin: z.string().regex(/^\d{6}$/, "PIN must be exactly 6 digits"),

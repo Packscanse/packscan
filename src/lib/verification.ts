@@ -16,6 +16,8 @@ export interface HandoverInput {
 /** Fields persisted on the PICKED_UP scan event's HandoverVerification. */
 export interface HandoverRecord {
   presentedCode: string | null;
+  /** Set by the carrier-API check in advanceStatus, never by checkHandover. */
+  codeValidated: boolean;
   idChecked: boolean;
   idType: IdType | null;
   collectorName: string | null;
@@ -91,6 +93,7 @@ export function checkHandover(
 
   const base = {
     presentedCode,
+    codeValidated: false,
     idChecked: input.idChecked,
     idType: input.idChecked ? (input.idType ?? null) : null,
     collectorName,

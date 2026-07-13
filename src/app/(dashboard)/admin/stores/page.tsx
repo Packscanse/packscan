@@ -6,6 +6,7 @@ import {
   updateStoreIdleAction,
 } from "@/actions/admin";
 import { CreateStoreForm } from "@/components/admin/CreateStoreForm";
+import { StoreDetailsForm } from "@/components/admin/StoreDetailsForm";
 import { StoreLogoForm } from "@/components/admin/StoreLogoForm";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,9 +35,8 @@ export default async function AdminStoresPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
+                <TableHead>Name &amp; address</TableHead>
                 <TableHead>Code</TableHead>
-                <TableHead>Address</TableHead>
                 <TableHead>Staff</TableHead>
                 <TableHead>Packages</TableHead>
                 <TableHead>Idle logout</TableHead>
@@ -48,10 +48,11 @@ export default async function AdminStoresPage() {
             <TableBody>
               {stores.map((store) => (
                 <TableRow key={store.id}>
-                  <TableCell>{store.name}</TableCell>
-                  <TableCell className="font-mono">{store.code}</TableCell>
-                  <TableCell>{store.address ?? "—"}</TableCell>
-                  <TableCell>{store._count.users}</TableCell>
+                  <TableCell className="align-top">
+                    <StoreDetailsForm storeId={store.id} name={store.name} address={store.address} />
+                  </TableCell>
+                  <TableCell className="align-top font-mono">{store.code}</TableCell>
+                  <TableCell className="align-top">{store._count.users}</TableCell>
                   <TableCell>{store._count.packages}</TableCell>
                   <TableCell>
                     <form action={updateStoreIdleAction} className="flex items-center gap-2">

@@ -31,6 +31,7 @@ export const postnlProvider: CarrierProvider = {
   reportPickedUp: notConfigured,
   reportAcceptedOutbound: notConfigured,
   reportReturned: notConfigured,
+  verifyPickupCode: notConfigured,
 
   async lookupTrackingDetails() {
     throw new Error("POSTNL tracking API lookup not implemented (no credentials configured)");

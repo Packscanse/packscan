@@ -5,6 +5,7 @@
 import { prisma } from "../src/lib/prisma";
 import { advanceStatus, cancelPackage, markForReturn, registerScan } from "../src/lib/packages";
 import { requeueEvents } from "../src/lib/carrier-events";
+import { postnordProvider } from "../src/lib/carriers/rules/postnord";
 
 const TEST_PREFIX = "PKSTEST";
 let failures = 0;
@@ -136,6 +137,37 @@ async function main() {
         notifications[1].trigger === "PICKED_UP",
       notifications.map((n) => `${n.trigger}:${n.status}`).join(", ")
     );
+  }
+
+  // --- Carrier code validation seam (simulating a configured API) ---
+  const val1 = await registerScan({ ...base, trackingNumber: `${TEST_PREFIX}VAL01`, flow: "INBOUND_PICKUP" });
+  const realVerify = postnordProvider.verifyPickupCode;
+  try {
+    postnordProvider.verifyPickupCode = async () => ({ status: "INVALID" as const });
+    const rejected = await registerScan({
+      ...base,
+      trackingNumber: `${TEST_PREFIX}VAL01`,
+      flow: "INBOUND_PICKUP",
+      verification: { presentedCode: "STALE-CODE", idChecked: true, idType: "PASSPORT" },
+    });
+    check("code validation: carrier INVALID blocks the handover", !rejected.ok && rejected.code === "VERIFICATION_FAILED");
+
+    postnordProvider.verifyPickupCode = async () => ({ status: "VALID" as const });
+    const accepted = await registerScan({
+      ...base,
+      trackingNumber: `${TEST_PREFIX}VAL01`,
+      flow: "INBOUND_PICKUP",
+      verification: { presentedCode: "FRESH-CODE", idChecked: true, idType: "PASSPORT" },
+    });
+    check("code validation: carrier VALID completes the handover", accepted.ok && accepted.package.status === "PICKED_UP");
+    if (val1.ok) {
+      const record = await prisma.handoverVerification.findFirst({
+        where: { scanEvent: { packageId: val1.package.id } },
+      });
+      check("code validation: codeValidated persisted on the proof", record?.codeValidated === true);
+    }
+  } finally {
+    postnordProvider.verifyPickupCode = realVerify;
   }
 
   // --- Manager override: admin-only, stranded customer, mandatory reason ---
@@ -344,7 +376,7 @@ async function main() {
   const events = await prisma.scanEvent.count({
     where: { storeId: store.id, package: { trackingNumber: { startsWith: TEST_PREFIX } } },
   });
-  check("audit: expected 17 scan events recorded", events === 17, `got ${events}`);
+  check("audit: expected 19 scan events recorded", events === 19, `got ${events}`);
 
   // Audit rows survive package deletion attempts (Restrict, not Cascade)
   if (log1.ok) {

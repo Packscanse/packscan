@@ -37,6 +37,7 @@ export const dhlProvider: CarrierProvider = {
   reportPickedUp: notConfigured,
   reportAcceptedOutbound: notConfigured,
   reportReturned: notConfigured,
+  verifyPickupCode: notConfigured,
 
   async lookupTrackingDetails() {
     throw new Error("DHL tracking API lookup not implemented (no credentials configured)");

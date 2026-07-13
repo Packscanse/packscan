@@ -46,7 +46,8 @@ export default async function ReceiptPage({
   const receivedEvent = pkg.scanEvents[0];
 
   return (
-    <div className="mx-auto grid max-w-md gap-4">
+    // print: sized for 80mm thermal receipt printers (~72mm printable).
+    <div className="mx-auto grid max-w-md gap-4 print:mx-0 print:max-w-[72mm] print:gap-2 print:text-xs">
       <div className="flex items-center justify-between print:hidden">
         <h1 className="text-xl font-semibold">Drop-off receipt</h1>
         <div className="flex gap-2">
@@ -57,7 +58,7 @@ export default async function ReceiptPage({
         </div>
       </div>
 
-      <Card>
+      <Card className="print:rounded-none print:border-0 print:shadow-none">
         <CardContent className="grid gap-3 pt-4 text-sm">
           <div>
             <p className="text-base font-semibold">{pkg.store.name} ({pkg.store.code})</p>

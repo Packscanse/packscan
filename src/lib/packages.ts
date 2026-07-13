@@ -21,7 +21,7 @@ import {
   canCancel,
   type ScanFlow,
 } from "@/lib/status";
-import { getPickupPolicy, normalizeTrackingNumber } from "@/lib/carriers";
+import { CARRIER_PROVIDERS, getPickupPolicy, normalizeTrackingNumber } from "@/lib/carriers";
 import { checkHandover, type HandoverInput, type HandoverRecord } from "@/lib/verification";
 
 /** What the UI needs to render the handover-verification step. */
@@ -255,6 +255,33 @@ export async function advanceStatus(args: {
       return { ok: false, code: "VERIFICATION_FAILED", error: checked.error };
     }
     handoverRecord = checked.record;
+
+    // Phase 2 seam, live already: when the carrier's API is configured, the
+    // presented code is validated for real — INVALID blocks the handover.
+    // NOT_CONFIGURED (or a transient API error) keeps today's behavior:
+    // the code is recorded as evidence only. Overrides skip validation by
+    // design — they are the escape hatch past every gate.
+    if (handoverRecord.presentedCode && !handoverRecord.override) {
+      const provider = CARRIER_PROVIDERS.find((p) => p.code === pkg.carrier);
+      if (provider) {
+        try {
+          const verdict = await provider.verifyPickupCode(
+            pkg.trackingNumber,
+            handoverRecord.presentedCode
+          );
+          if (verdict.status === "INVALID") {
+            return {
+              ok: false,
+              code: "VERIFICATION_FAILED",
+              error: `${pkg.carrier} rejected this pickup code — ask the customer to refresh it in their carrier app.`,
+            };
+          }
+          handoverRecord.codeValidated = verdict.status === "VALID";
+        } catch {
+          // Carrier API down: proceed with the code as evidence only.
+        }
+      }
+    }
   }
 
   const enqueue: EnqueueArgs | undefined =

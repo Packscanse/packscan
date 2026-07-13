@@ -222,7 +222,7 @@ export default async function PackageDetailPage({
                   Verified:{" "}
                   {[
                     event.verification.presentedCode &&
-                      `carrier-app code captured (${event.verification.presentedCode})`,
+                      `carrier-app code ${event.verification.codeValidated ? "validated by carrier" : "captured"} (${event.verification.presentedCode})`,
                     event.verification.idChecked &&
                       `ID checked${event.verification.idType ? ` (${ID_TYPE_LABELS[event.verification.idType]})` : ""}`,
                   ]
