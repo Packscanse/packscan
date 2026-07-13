@@ -1,4 +1,4 @@
-import { getRequiredAdminSession } from "@/lib/session";
+import { getRequiredManagerSession, managedStoreId } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { CreateUserForm } from "@/components/admin/CreateUserForm";
 import { UserActions } from "@/components/admin/UserActions";
@@ -14,13 +14,17 @@ import {
 } from "@/components/ui/table";
 
 export default async function AdminUsersPage() {
-  const session = await getRequiredAdminSession();
+  const session = await getRequiredManagerSession();
+  const scope = managedStoreId(session);
+  const isAdmin = session.user.role === "ADMIN";
   const [users, stores] = await Promise.all([
     prisma.user.findMany({
+      where: scope ? { storeId: scope } : undefined,
       orderBy: { createdAt: "asc" },
       include: { store: { select: { name: true, code: true } } },
     }),
     prisma.store.findMany({
+      where: scope ? { id: scope } : undefined,
       orderBy: { name: "asc" },
       select: { id: true, name: true, code: true },
     }),
@@ -63,14 +67,19 @@ export default async function AdminUsersPage() {
                   </TableCell>
                   <TableCell className="align-top">{user.active ? "Yes" : "No"}</TableCell>
                   <TableCell>
-                    <UserActions
-                      userId={user.id}
-                      role={user.role}
-                      active={user.active}
-                      isSelf={user.id === session.user.id}
-                      storeId={user.storeId}
-                      stores={stores}
-                    />
+                    {!isAdmin && user.role === "ADMIN" ? (
+                      <p className="text-xs text-muted-foreground">Managed by chain admin</p>
+                    ) : (
+                      <UserActions
+                        userId={user.id}
+                        role={user.role}
+                        active={user.active}
+                        isSelf={user.id === session.user.id}
+                        storeId={user.storeId}
+                        stores={stores}
+                        actorIsAdmin={isAdmin}
+                      />
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -84,7 +93,7 @@ export default async function AdminUsersPage() {
           <CardTitle className="text-base">Add user</CardTitle>
         </CardHeader>
         <CardContent>
-          <CreateUserForm stores={stores} />
+          <CreateUserForm stores={stores} canCreateAdmin={isAdmin} />
         </CardContent>
       </Card>
     </div>

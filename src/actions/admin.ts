@@ -31,8 +31,17 @@ export type AdminFormState = { error?: string; success?: string };
 
 // Administration demands a password-established session — a counter PIN
 // never unlocks it, even for an admin account.
-function isFullAdmin(session: Awaited<ReturnType<typeof getRequiredSession>>): boolean {
+type ActiveSession = Awaited<ReturnType<typeof getRequiredSession>>;
+
+function isFullAdmin(session: ActiveSession): boolean {
   return session.user.role === "ADMIN" && session.user.authMethod === "PASSWORD";
+}
+
+function isStoreManager(session: ActiveSession): boolean {
+  return (
+    (session.user.role === "ADMIN" || session.user.role === "MANAGER") &&
+    session.user.authMethod === "PASSWORD"
+  );
 }
 
 async function requireAdmin(): Promise<string | null> {
@@ -40,11 +49,32 @@ async function requireAdmin(): Promise<string | null> {
   return isFullAdmin(session) ? null : "Forbidden";
 }
 
-async function requireAdminSession() {
+/** ADMIN or store MANAGER (password session). */
+async function requireManagerSession() {
   const session = await getRequiredSession();
-  return isFullAdmin(session)
-    ? ({ ok: true, session } as const)
+  return isStoreManager(session)
+    ? ({ ok: true, session, isAdmin: session.user.role === "ADMIN" } as const)
     : ({ ok: false, error: "Forbidden" } as const);
+}
+
+/** Managers may only manage their own store; admins any. */
+function canManageStore(auth: { session: ActiveSession; isAdmin: boolean }, storeId: string): boolean {
+  return auth.isAdmin || auth.session.user.storeId === storeId;
+}
+
+/**
+ * Managers may only manage non-ADMIN accounts in their own store; admins
+ * any account. Returns the target when allowed.
+ */
+async function manageableUser(
+  auth: { session: ActiveSession; isAdmin: boolean },
+  userId: string
+) {
+  const target = await prisma.user.findUnique({ where: { id: userId } });
+  if (!target) return null;
+  if (auth.isAdmin) return target;
+  if (target.storeId !== auth.session.user.storeId || target.role === "ADMIN") return null;
+  return target;
 }
 
 export async function createStoreAction(
@@ -73,11 +103,11 @@ export async function createStoreAction(
 
 /** Per-store inactivity timeout (1-10 min); takes effect on staff sessions within ~5 min via the JWT recheck. */
 export async function updateStoreIdleAction(formData: FormData): Promise<void> {
-  const forbidden = await requireAdmin();
-  if (forbidden) return;
+  const auth = await requireManagerSession();
+  if (!auth.ok) return;
 
   const parsed = UpdateStoreIdleSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) return;
+  if (!parsed.success || !canManageStore(auth, parsed.data.storeId)) return;
 
   await prisma.store.update({
     where: { id: parsed.data.storeId },
@@ -88,11 +118,11 @@ export async function updateStoreIdleAction(formData: FormData): Promise<void> {
 
 /** Days a parcel may await pickup before the Packages page flags it overdue. */
 export async function updateStoreDeadlineAction(formData: FormData): Promise<void> {
-  const forbidden = await requireAdmin();
-  if (forbidden) return;
+  const auth = await requireManagerSession();
+  if (!auth.ok) return;
 
   const parsed = UpdateStoreDeadlineSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) return;
+  if (!parsed.success || !canManageStore(auth, parsed.data.storeId)) return;
 
   await prisma.store.update({
     where: { id: parsed.data.storeId },
@@ -105,12 +135,16 @@ export async function createUserAction(
   _prev: AdminFormState | undefined,
   formData: FormData
 ): Promise<AdminFormState> {
-  const forbidden = await requireAdmin();
-  if (forbidden) return { error: forbidden };
+  const auth = await requireManagerSession();
+  if (!auth.ok) return { error: auth.error };
 
   const parsed = CreateUserSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+  // Managers hire for their own store and can never mint chain admins.
+  if (!auth.isAdmin && (parsed.data.storeId !== auth.session.user.storeId || parsed.data.role === "ADMIN")) {
+    return { error: "Managers can only create clerk/manager accounts in their own store." };
   }
 
   const store = await prisma.store.findUnique({ where: { id: parsed.data.storeId } });
@@ -141,11 +175,12 @@ export async function setUserActiveAction(
   _prev: AdminFormState | undefined,
   formData: FormData
 ): Promise<AdminFormState> {
-  const auth = await requireAdminSession();
+  const auth = await requireManagerSession();
   if (!auth.ok) return { error: auth.error };
 
   const parsed = SetUserActiveSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: "Invalid input" };
+  if (!(await manageableUser(auth, parsed.data.userId))) return { error: "Forbidden" };
 
   const result = await setUserActive({
     actorId: auth.session.user.id,
@@ -162,11 +197,15 @@ export async function setUserRoleAction(
   _prev: AdminFormState | undefined,
   formData: FormData
 ): Promise<AdminFormState> {
-  const auth = await requireAdminSession();
+  const auth = await requireManagerSession();
   if (!auth.ok) return { error: auth.error };
 
   const parsed = SetUserRoleSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: "Invalid input" };
+  if (!(await manageableUser(auth, parsed.data.userId))) return { error: "Forbidden" };
+  if (!auth.isAdmin && parsed.data.role === "ADMIN") {
+    return { error: "Only chain admins can grant the admin role." };
+  }
 
   const result = await setUserRole({
     actorId: auth.session.user.id,
@@ -184,11 +223,12 @@ export async function updateStoreDetailsAction(
   _prev: AdminFormState | undefined,
   formData: FormData
 ): Promise<AdminFormState> {
-  const forbidden = await requireAdmin();
-  if (forbidden) return { error: forbidden };
+  const auth = await requireManagerSession();
+  if (!auth.ok) return { error: auth.error };
 
   const parsed = UpdateStoreDetailsSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  if (!canManageStore(auth, parsed.data.storeId)) return { error: "Forbidden" };
 
   await prisma.store.update({
     where: { id: parsed.data.storeId },
@@ -225,11 +265,12 @@ export async function setUserPinAction(
   _prev: AdminFormState | undefined,
   formData: FormData
 ): Promise<AdminFormState> {
-  const forbidden = await requireAdmin();
-  if (forbidden) return { error: forbidden };
+  const auth = await requireManagerSession();
+  if (!auth.ok) return { error: auth.error };
 
   const parsed = SetPinSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: "PIN must be exactly 6 digits." };
+  if (!(await manageableUser(auth, parsed.data.userId))) return { error: "Forbidden" };
 
   const result = await setUserPin({ targetId: parsed.data.userId, pin: parsed.data.pin });
   if (!result.ok) return { error: result.error };
@@ -242,11 +283,12 @@ export async function updateStoreLogoAction(
   _prev: AdminFormState | undefined,
   formData: FormData
 ): Promise<AdminFormState> {
-  const forbidden = await requireAdmin();
-  if (forbidden) return { error: forbidden };
+  const auth = await requireManagerSession();
+  if (!auth.ok) return { error: auth.error };
 
   const storeId = formData.get("storeId");
   if (typeof storeId !== "string" || !storeId) return { error: "Invalid store." };
+  if (!canManageStore(auth, storeId)) return { error: "Forbidden" };
 
   const remove = formData.get("remove") === "true";
   if (remove) {
@@ -273,11 +315,11 @@ export async function updateStoreLogoAction(
 
 /** Chain branding: the store's primary color themes the whole app. */
 export async function updateStoreBrandAction(formData: FormData): Promise<void> {
-  const forbidden = await requireAdmin();
-  if (forbidden) return;
+  const auth = await requireManagerSession();
+  if (!auth.ok) return;
 
   const parsed = UpdateStoreBrandSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) return;
+  if (!parsed.success || !canManageStore(auth, parsed.data.storeId)) return;
 
   await prisma.store.update({
     where: { id: parsed.data.storeId },
@@ -291,13 +333,14 @@ export async function resetUserPasswordAction(
   _prev: AdminFormState | undefined,
   formData: FormData
 ): Promise<AdminFormState> {
-  const forbidden = await requireAdmin();
-  if (forbidden) return { error: forbidden };
+  const auth = await requireManagerSession();
+  if (!auth.ok) return { error: auth.error };
 
   const parsed = ResetPasswordSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     return { error: "Password must be 8-128 characters." };
   }
+  if (!(await manageableUser(auth, parsed.data.userId))) return { error: "Forbidden" };
 
   const result = await resetUserPassword({
     targetId: parsed.data.userId,

@@ -38,7 +38,7 @@ export const CreateUserSchema = z.object({
   email: z.email().transform((v) => v.toLowerCase()),
   name: z.string().trim().min(2).max(120),
   password: z.string().min(8).max(128),
-  role: z.enum(["ADMIN", "CLERK"]),
+  role: z.enum(["ADMIN", "MANAGER", "CLERK"]),
   storeId: z.string().min(1),
 });
 
@@ -50,7 +50,7 @@ export const SetUserActiveSchema = z.object({
 
 export const SetUserRoleSchema = z.object({
   userId: z.string().min(1),
-  role: z.enum(["ADMIN", "CLERK"]),
+  role: z.enum(["ADMIN", "MANAGER", "CLERK"]),
 });
 
 export const ResetPasswordSchema = z.object({

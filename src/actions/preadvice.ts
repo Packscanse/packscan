@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { getRequiredAdminSession } from "@/lib/session";
+import { getRequiredManagerSession, managedStoreId } from "@/lib/session";
 import { PreAdviceLineSchema } from "@/lib/validation/admin";
 
 export type ImportState = { error?: string; success?: string };
@@ -17,13 +17,15 @@ export async function importPreAdviceAction(
   _prev: ImportState | undefined,
   formData: FormData
 ): Promise<ImportState> {
-  await getRequiredAdminSession();
+  const session = await getRequiredManagerSession();
 
   const storeId = formData.get("storeId");
   const text = formData.get("lines");
   if (typeof storeId !== "string" || !storeId || typeof text !== "string") {
     return { error: "Invalid input" };
   }
+  const scope = managedStoreId(session);
+  if (scope && storeId !== scope) return { error: "Forbidden" };
   const store = await prisma.store.findUnique({ where: { id: storeId } });
   if (!store) return { error: "Store not found." };
 

@@ -9,7 +9,12 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const session = await getRequiredSession();
-  if (session.user.role !== "ADMIN") notFound();
+  if (
+    (session.user.role !== "ADMIN" && session.user.role !== "MANAGER") ||
+    session.user.authMethod !== "PASSWORD"
+  ) {
+    notFound();
+  }
 
   return (
     <div className="grid gap-4">

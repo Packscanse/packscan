@@ -32,6 +32,7 @@ export function UserActions({
   isSelf,
   storeId,
   stores,
+  actorIsAdmin,
 }: {
   userId: string;
   role: Role;
@@ -39,6 +40,8 @@ export function UserActions({
   isSelf: boolean;
   storeId: string;
   stores: { id: string; name: string; code: string }[];
+  /** Chain admins may grant ADMIN and move users between stores. */
+  actorIsAdmin: boolean;
 }) {
   const [activeState, activeAction, activePending] = useActionState(setUserActiveAction, undefined);
   const [roleState, roleAction, rolePending] = useActionState(setUserRoleAction, undefined);
@@ -59,7 +62,8 @@ export function UserActions({
           className="h-8 rounded-md border border-input bg-transparent px-2 text-sm disabled:opacity-50"
         >
           <option value="CLERK">Clerk</option>
-          <option value="ADMIN">Admin</option>
+          <option value="MANAGER">Manager</option>
+          {actorIsAdmin && <option value="ADMIN">Admin</option>}
         </select>
         <Button type="submit" variant="outline" size="sm" disabled={isSelf || rolePending}>
           {rolePending ? "Saving…" : "Set role"}
@@ -100,7 +104,7 @@ export function UserActions({
       </form>
       <StateLine state={pwState} />
 
-      {stores.length > 1 && (
+      {actorIsAdmin && stores.length > 1 && (
         <>
           <form action={storeAction} className="flex items-center gap-2">
             <input type="hidden" name="userId" value={userId} />

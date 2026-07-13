@@ -52,9 +52,22 @@ async function main() {
     },
   });
 
+  await prisma.user.upsert({
+    where: { email: "manager@packscan.local" },
+    update: {},
+    create: {
+      email: "manager@packscan.local",
+      name: "Demo Manager",
+      role: "MANAGER",
+      storeId: store.id,
+      passwordHash: await bcrypt.hash("manager-dev-password", 10),
+    },
+  });
+
   console.log(`Seeded store "${store.name}" (${store.code}) with users:`);
-  console.log(`  ADMIN  ${ADMIN_EMAIL} / ${ADMIN_PASSWORD}`);
-  console.log(`  CLERK  ${CLERK_EMAIL} / ${CLERK_PASSWORD} (counter PIN ${CLERK_PIN})`);
+  console.log(`  ADMIN    ${ADMIN_EMAIL} / ${ADMIN_PASSWORD}`);
+  console.log(`  MANAGER  manager@packscan.local / manager-dev-password (own store only)`);
+  console.log(`  CLERK    ${CLERK_EMAIL} / ${CLERK_PASSWORD} (counter PIN ${CLERK_PIN})`);
 }
 
 main()

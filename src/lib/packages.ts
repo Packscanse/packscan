@@ -243,11 +243,15 @@ export async function advanceStatus(args: {
         },
       };
     }
-    if (args.verification.override && args.actorRole !== "ADMIN") {
+    if (
+      args.verification.override &&
+      args.actorRole !== "ADMIN" &&
+      args.actorRole !== "MANAGER"
+    ) {
       return {
         ok: false,
         code: "VERIFICATION_FAILED",
-        error: "Manager override requires an admin account.",
+        error: "Manager override requires a manager or admin account.",
       };
     }
     const checked = checkHandover(getPickupPolicy(pkg.carrier), args.verification, pkg);

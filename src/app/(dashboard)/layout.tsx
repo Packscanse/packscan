@@ -27,7 +27,7 @@ export default async function DashboardLayout({
       {/* Bottom padding keeps content clear of the mobile tab bar. */}
       <main className="mx-auto max-w-5xl p-4 pb-24 sm:pb-4">{children}</main>
       <MobileNav
-        isAdmin={session.user.role === "ADMIN" && session.user.authMethod === "PASSWORD"}
+        isAdmin={(session.user.role === "ADMIN" || session.user.role === "MANAGER") && session.user.authMethod === "PASSWORD"}
       />
     </div>
   );

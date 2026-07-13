@@ -14,9 +14,11 @@ export function NavBar({
   storeLogo: string | null;
 }) {
   const isAdmin = session.user.role === "ADMIN";
-  // Administration needs a password session; hide the entry point for PIN
-  // sessions (the server-side guards enforce it regardless).
-  const showAdmin = isAdmin && session.user.authMethod === "PASSWORD";
+  // Administration (admins chain-wide, managers their own store) needs a
+  // password session; hide the entry point for PIN sessions (the
+  // server-side guards enforce it regardless).
+  const showAdmin =
+    (isAdmin || session.user.role === "MANAGER") && session.user.authMethod === "PASSWORD";
 
   return (
     <header className="border-b bg-background">

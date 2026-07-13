@@ -21,6 +21,26 @@ export async function getRequiredAdminSession(): Promise<Session> {
   return session;
 }
 
+/**
+ * ADMIN (all stores) or MANAGER (their own store only), password session
+ * required. Pages using this must scope their queries with managedStoreId.
+ */
+export async function getRequiredManagerSession(): Promise<Session> {
+  const session = await getRequiredSession();
+  if (
+    (session.user.role !== "ADMIN" && session.user.role !== "MANAGER") ||
+    session.user.authMethod !== "PASSWORD"
+  ) {
+    notFound();
+  }
+  return session;
+}
+
+/** Store filter for management queries: undefined = all stores (ADMIN). */
+export function managedStoreId(session: Session): string | undefined {
+  return session.user.role === "ADMIN" ? undefined : session.user.storeId;
+}
+
 export function assertRole(session: Session, ...roles: Role[]): void {
   if (!roles.includes(session.user.role)) {
     throw new Error("Forbidden: insufficient role");

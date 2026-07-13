@@ -8,8 +8,11 @@ import { Label } from "@/components/ui/label";
 
 export function CreateUserForm({
   stores,
+  canCreateAdmin,
 }: {
   stores: { id: string; name: string; code: string }[];
+  /** Only chain admins may mint ADMIN accounts. */
+  canCreateAdmin: boolean;
 }) {
   const [state, formAction, pending] = useActionState(createUserAction, undefined);
 
@@ -36,7 +39,8 @@ export function CreateUserForm({
           className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs"
         >
           <option value="CLERK">Clerk</option>
-          <option value="ADMIN">Admin</option>
+          <option value="MANAGER">Manager</option>
+          {canCreateAdmin && <option value="ADMIN">Admin</option>}
         </select>
       </div>
       <div className="grid gap-2">

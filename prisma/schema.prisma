@@ -9,8 +9,12 @@ datasource db {
 
 // ---------- Enums ----------
 
+// ADMIN: every store (the chain/owner). MANAGER: administers their own
+// store only — staff, settings, reports, overrides — never other stores,
+// never ADMIN accounts. CLERK: scans.
 enum Role {
   ADMIN
+  MANAGER
   CLERK
 }
 

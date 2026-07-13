@@ -1,4 +1,4 @@
-import { getRequiredAdminSession } from "@/lib/session";
+import { getRequiredManagerSession, managedStoreId } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import {
   updateStoreBrandAction,
@@ -20,8 +20,10 @@ import {
 } from "@/components/ui/table";
 
 export default async function AdminStoresPage() {
-  await getRequiredAdminSession();
+  const session = await getRequiredManagerSession();
+  const scope = managedStoreId(session);
   const stores = await prisma.store.findMany({
+    where: scope ? { id: scope } : undefined,
     orderBy: { name: "asc" },
     include: { _count: { select: { users: true, packages: true } } },
   });
@@ -131,14 +133,16 @@ export default async function AdminStoresPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Add store</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <CreateStoreForm />
-        </CardContent>
-      </Card>
+      {!scope && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Add store</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CreateStoreForm />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

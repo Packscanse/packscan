@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { format } from "date-fns";
-import { getRequiredAdminSession } from "@/lib/session";
+import { getRequiredManagerSession, managedStoreId } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { STATUS_LABELS } from "@/lib/status";
 import {
@@ -14,14 +14,22 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function AdminOverviewPage() {
-  await getRequiredAdminSession();
+  const session = await getRequiredManagerSession();
+  // Managers see their own store; chain admins see everything.
+  const scope = managedStoreId(session);
   const [stores, statusCounts, recentEvents, recentOverrides] = await Promise.all([
     prisma.store.findMany({
+      where: scope ? { id: scope } : undefined,
       orderBy: { name: "asc" },
       include: { _count: { select: { users: true, packages: true } } },
     }),
-    prisma.package.groupBy({ by: ["storeId", "status"], _count: { _all: true } }),
+    prisma.package.groupBy({
+      by: ["storeId", "status"],
+      where: scope ? { storeId: scope } : undefined,
+      _count: { _all: true },
+    }),
     prisma.scanEvent.findMany({
+      where: scope ? { storeId: scope } : undefined,
       orderBy: { scannedAt: "desc" },
       take: 15,
       include: {
@@ -31,7 +39,7 @@ export default async function AdminOverviewPage() {
       },
     }),
     prisma.handoverVerification.findMany({
-      where: { override: true },
+      where: { override: true, ...(scope && { scanEvent: { storeId: scope } }) },
       orderBy: { createdAt: "desc" },
       take: 15,
       include: {

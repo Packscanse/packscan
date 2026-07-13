@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { format } from "date-fns";
-import { getRequiredAdminSession } from "@/lib/session";
+import { getRequiredManagerSession, managedStoreId } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { formatDuration } from "@/lib/duration";
 import { CARRIER_LABELS, CARRIER_PROVIDERS } from "@/lib/carriers";
 import { dispatchNowAction, requeueOutboxAction } from "@/actions/operations";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -24,7 +25,10 @@ const PERIOD_DAYS = 30;
  * on the shelves, and the health of the carrier-event outbox.
  */
 export default async function OperationsPage() {
-  await getRequiredAdminSession();
+  const session = await getRequiredManagerSession();
+  // Managers see their own store; the outbox (global plumbing) is admin-only.
+  const scope = managedStoreId(session);
+  const isAdmin = session.user.role === "ADMIN";
 
   const startOfDay = new Date(new Date().setHours(0, 0, 0, 0));
   const returnAgeCutoff = new Date(Date.now() - RETURN_PENDING_AGE_DAYS * 24 * 60 * 60 * 1000);
@@ -33,12 +37,13 @@ export default async function OperationsPage() {
   const [stores, receivedToday, completedToday, outboxByStatus, failedEvents, oldestPending] =
     await Promise.all([
       prisma.store.findMany({
+        where: scope ? { id: scope } : undefined,
         orderBy: { name: "asc" },
         select: { id: true, name: true, code: true, pickupDeadlineDays: true },
       }),
       prisma.package.groupBy({
         by: ["storeId", "carrier"],
-        where: { createdAt: { gte: startOfDay } },
+        where: { createdAt: { gte: startOfDay }, ...(scope && { storeId: scope }) },
         _count: { _all: true },
       }),
       prisma.scanEvent.groupBy({
@@ -46,36 +51,59 @@ export default async function OperationsPage() {
         where: {
           scannedAt: { gte: startOfDay },
           toStatus: { in: ["PICKED_UP", "HANDED_OFF", "RETURNED_TO_CARRIER"] },
+          ...(scope && { storeId: scope }),
         },
         _count: { _all: true },
       }),
-      prisma.carrierEventOutbox.groupBy({ by: ["status"], _count: { _all: true } }),
-      prisma.carrierEventOutbox.findMany({
-        where: { status: "FAILED" },
-        orderBy: { nextAttemptAt: "desc" },
-        take: 10,
-        include: { package: { select: { id: true, trackingNumber: true } } },
-      }),
-      prisma.carrierEventOutbox.findFirst({
-        where: { status: "PENDING" },
-        orderBy: { createdAt: "asc" },
-        select: { createdAt: true },
-      }),
+      isAdmin
+        ? prisma.carrierEventOutbox.groupBy({ by: ["status"], _count: { _all: true } })
+        : Promise.resolve([]),
+      isAdmin
+        ? prisma.carrierEventOutbox.findMany({
+            where: { status: "FAILED" },
+            orderBy: { nextAttemptAt: "desc" },
+            take: 10,
+            include: { package: { select: { id: true, trackingNumber: true } } },
+          })
+        : Promise.resolve([]),
+      isAdmin
+        ? prisma.carrierEventOutbox.findFirst({
+            where: { status: "PENDING" },
+            orderBy: { createdAt: "asc" },
+            select: { createdAt: true },
+          })
+        : Promise.resolve(null),
     ]);
 
   // Last-30-days volumes and dwell: what came in per carrier, what went
   // out, and how long parcels sat before pickup (avg + longest).
-  const [receivedPeriod, pickedUpPeriod] = await Promise.all([
+  const [receivedPeriod, pickedUpPeriod, intakePeriod] = await Promise.all([
     prisma.package.groupBy({
       by: ["storeId", "carrier"],
-      where: { createdAt: { gte: periodStart }, direction: "INBOUND" },
+      where: { createdAt: { gte: periodStart }, direction: "INBOUND", ...(scope && { storeId: scope }) },
       _count: { _all: true },
     }),
     prisma.scanEvent.findMany({
-      where: { toStatus: "PICKED_UP", scannedAt: { gte: periodStart } },
+      where: { toStatus: "PICKED_UP", scannedAt: { gte: periodStart }, ...(scope && { storeId: scope }) },
       select: { storeId: true, scannedAt: true, package: { select: { createdAt: true } } },
     }),
+    // Intake events (first scans) for the hour-of-day staffing profile.
+    prisma.scanEvent.findMany({
+      where: { fromStatus: null, scannedAt: { gte: periodStart }, ...(scope && { storeId: scope }) },
+      select: { scannedAt: true },
+    }),
   ]);
+
+  // Hour-of-day profile (0-23): when parcels arrive vs. get picked up —
+  // the owner's staffing planner.
+  const receivedByHour = Array.from({ length: 24 }, () => 0);
+  const pickedByHour = Array.from({ length: 24 }, () => 0);
+  for (const e of intakePeriod) receivedByHour[e.scannedAt.getHours()]++;
+  for (const e of pickedUpPeriod) pickedByHour[e.scannedAt.getHours()]++;
+  const hourMax = Math.max(1, ...receivedByHour, ...pickedByHour);
+
+  const today = new Date();
+  const defaultMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
 
   // Shelf aging is per-store because deadlines are per-store.
   const aging = await Promise.all(
@@ -225,6 +253,54 @@ export default async function OperationsPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle className="text-base">
+            Busiest hours (last {PERIOD_DAYS} days) — staffing profile
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 text-sm">
+          {[
+            { label: "Received", data: receivedByHour, tone: "bg-primary/70" },
+            { label: "Picked up", data: pickedByHour, tone: "bg-primary" },
+          ].map((series) => (
+            <div key={series.label} className="grid gap-1">
+              <p className="text-xs text-muted-foreground">{series.label}</p>
+              <div className="flex h-16 items-end gap-px overflow-x-auto">
+                {series.data.map((count, hour) => (
+                  <div key={hour} className="flex min-w-4 flex-1 flex-col items-center gap-0.5">
+                    <div
+                      className={`w-full rounded-t-sm ${count > 0 ? series.tone : "bg-muted"}`}
+                      style={{ height: `${Math.max(count > 0 ? 8 : 2, (count / hourMax) * 56)}px` }}
+                      title={`${String(hour).padStart(2, "0")}:00 — ${count}`}
+                    />
+                    {hour % 3 === 0 && (
+                      <span className="text-[9px] text-muted-foreground">{hour}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Settlement export</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-2 text-sm">
+          <p className="text-muted-foreground">
+            CSV per store and carrier for a month — received, picked up, handed off, returned —
+            to reconcile against the carrier&rsquo;s settlement.
+          </p>
+          <form action="/api/settlement" method="GET" className="flex flex-wrap items-end gap-2">
+            <Input type="month" name="month" defaultValue={defaultMonth} required className="w-44" aria-label="Settlement month" />
+            <SubmitButton pendingText="Preparing…">Download CSV</SubmitButton>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-base">Shelf right now</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-2 text-sm">
@@ -251,6 +327,7 @@ export default async function OperationsPage() {
         </CardContent>
       </Card>
 
+      {isAdmin && (
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Carrier event outbox</CardTitle>
@@ -332,6 +409,7 @@ export default async function OperationsPage() {
           </p>
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }
