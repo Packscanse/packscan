@@ -3,6 +3,7 @@ import { postnordProvider } from "./rules/postnord";
 import { postnlProvider } from "./rules/postnl";
 import { dhlProvider } from "./rules/dhl";
 import { fedexProvider } from "./rules/fedex";
+import { schenkerProvider } from "./rules/schenker";
 
 // Registry order breaks confidence ties (stable sort in detect.ts).
 export const CARRIER_PROVIDERS: CarrierProvider[] = [
@@ -10,6 +11,7 @@ export const CARRIER_PROVIDERS: CarrierProvider[] = [
   postnlProvider,
   dhlProvider,
   fedexProvider,
+  schenkerProvider,
 ];
 
 // Unrecognized carrier: no code scheme to trust, so fall back to the

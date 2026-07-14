@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const ALL_CARRIERS: CarrierCode[] = ["DHL", "POSTNORD", "POSTNL", "FEDEX", "UNKNOWN"];
+const ALL_CARRIERS: CarrierCode[] = ["DHL", "POSTNORD", "POSTNL", "FEDEX", "SCHENKER", "UNKNOWN"];
 
 /**
  * Detected carrier with an always-available manual override — never a

@@ -22,7 +22,7 @@ export const CourierRefSchema = optionalTrimmed(80);
 export const ScanInputSchema = z.object({
   trackingNumber: z.string().trim().min(6).max(64),
   flow: z.enum(SCAN_FLOWS),
-  carrier: z.enum(["DHL", "POSTNORD", "POSTNL", "FEDEX", "UNKNOWN"]),
+  carrier: z.enum(["DHL", "POSTNORD", "POSTNL", "FEDEX", "SCHENKER", "UNKNOWN"]),
   carrierManual: z.boolean(),
   inputMethod: z.enum(["CAMERA", "HARDWARE_SCANNER", "MANUAL_ENTRY"]),
   customerName: optionalTrimmed(120),

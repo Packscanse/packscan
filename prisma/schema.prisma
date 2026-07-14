@@ -23,6 +23,7 @@ enum Carrier {
   POSTNORD
   POSTNL
   FEDEX
+  SCHENKER
   UNKNOWN
 }
 

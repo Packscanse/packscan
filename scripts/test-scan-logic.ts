@@ -5,6 +5,7 @@
 import { prisma } from "../src/lib/prisma";
 import { advanceStatus, cancelPackage, markForReturn, registerScan } from "../src/lib/packages";
 import { requeueEvents } from "../src/lib/carrier-events";
+import { ingestCarrierEvents } from "../src/lib/carrier-ingest";
 import { postnordProvider } from "../src/lib/carriers/rules/postnord";
 
 const TEST_PREFIX = "PKSTEST";
@@ -230,6 +231,48 @@ async function main() {
     check("return: terminal package cannot be marked again", !again.ok);
   }
 
+  // --- Carrier ingest (the inbound webhook's engine): upsert semantics ---
+  const ing1 = await ingestCarrierEvents({
+    carrier: "SCHENKER",
+    storeCode: "DEMO-01",
+    parcels: [{ trackingNumber: `${TEST_PREFIX}ING01`, customerName: "First Name", customerPhone: "+46701111111" }],
+  });
+  check("ingest: announced parcel created", ing1.ok && ing1.created === 1);
+  const ing2 = await ingestCarrierEvents({
+    carrier: "SCHENKER",
+    storeCode: "DEMO-01",
+    parcels: [{ trackingNumber: `${TEST_PREFIX}ING01`, customerName: "Corrected Name" }],
+  });
+  const ingAdvice = await prisma.preAdvice.findUnique({
+    where: { storeId_trackingNumber: { storeId: store.id, trackingNumber: `${TEST_PREFIX}ING01` } },
+  });
+  check(
+    "ingest: re-announcement updates contact while ANNOUNCED",
+    ing2.ok && ing2.updated === 1 && ingAdvice?.customerName === "Corrected Name" && ingAdvice.carrier === "SCHENKER"
+  );
+  const ingScan = await registerScan({
+    ...base,
+    carrier: "SCHENKER" as const,
+    trackingNumber: `${TEST_PREFIX}ING01`,
+    flow: "INBOUND_PICKUP",
+    customerName: "Corrected Name",
+  });
+  const ing3 = await ingestCarrierEvents({
+    carrier: "SCHENKER",
+    storeCode: "DEMO-01",
+    parcels: [{ trackingNumber: `${TEST_PREFIX}ING01`, customerName: "Too Late" }],
+  });
+  check(
+    "ingest: RECEIVED pre-advice never touched by later events",
+    ingScan.ok && ing3.ok && ing3.skippedReceived === 1
+  );
+  const ingBadStore = await ingestCarrierEvents({
+    carrier: "DHL",
+    storeCode: "NOPE-99",
+    parcels: [{ trackingNumber: `${TEST_PREFIX}ING02` }],
+  });
+  check("ingest: unknown store rejected", !ingBadStore.ok);
+
   // --- Pre-advice: announced parcel links and closes at intake ---
   await prisma.preAdvice.create({
     data: {
@@ -376,7 +419,7 @@ async function main() {
   const events = await prisma.scanEvent.count({
     where: { storeId: store.id, package: { trackingNumber: { startsWith: TEST_PREFIX } } },
   });
-  check("audit: expected 19 scan events recorded", events === 19, `got ${events}`);
+  check("audit: expected 20 scan events recorded", events === 20, `got ${events}`);
 
   // Audit rows survive package deletion attempts (Restrict, not Cascade)
   if (log1.ok) {

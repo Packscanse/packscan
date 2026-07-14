@@ -1,4 +1,4 @@
-export type CarrierCode = "DHL" | "POSTNORD" | "POSTNL" | "FEDEX" | "UNKNOWN";
+export type CarrierCode = "DHL" | "POSTNORD" | "POSTNL" | "FEDEX" | "SCHENKER" | "UNKNOWN";
 
 export type Confidence = "high" | "medium" | "low";
 

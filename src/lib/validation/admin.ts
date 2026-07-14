@@ -28,7 +28,7 @@ export const UpdateStoreDeadlineSchema = z.object({
 /** One pre-advice line: TRACKING,CARRIER[,NAME][,PHONE][,EMAIL] */
 export const PreAdviceLineSchema = z.object({
   trackingNumber: z.string().trim().min(6).max(64).transform((v) => v.toUpperCase().replace(/\s+/g, "")),
-  carrier: z.enum(["DHL", "POSTNORD", "POSTNL", "FEDEX", "UNKNOWN"]),
+  carrier: z.enum(["DHL", "POSTNORD", "POSTNL", "FEDEX", "SCHENKER", "UNKNOWN"]),
   customerName: z.string().trim().max(120).optional(),
   customerPhone: z.string().trim().max(32).optional(),
   customerEmail: z.string().trim().max(254).optional(),

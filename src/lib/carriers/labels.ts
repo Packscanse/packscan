@@ -5,5 +5,6 @@ export const CARRIER_LABELS: Record<CarrierCode, string> = {
   POSTNORD: "PostNord",
   POSTNL: "PostNL",
   FEDEX: "FedEx",
+  SCHENKER: "DB Schenker",
   UNKNOWN: "Unknown / other",
 };
