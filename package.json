@@ -12,7 +12,8 @@
     "test:users": "tsx --env-file=.env scripts/test-user-admin.ts",
     "purge:pii": "tsx --env-file=.env scripts/purge-pii.ts",
     "dispatch:events": "tsx --env-file=.env scripts/dispatch-events.ts",
-    "bench": "tsx --env-file=.env scripts/bench.ts"
+    "bench": "tsx --env-file=.env scripts/bench.ts",
+    "privacy": "tsx --env-file=.env scripts/privacy.ts"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",

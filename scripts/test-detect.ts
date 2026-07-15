@@ -104,21 +104,60 @@ expectLogo("logo: GIF rejected", validateLogo("image/gif", 10_000) !== null);
 expectLogo("logo: oversize rejected", validateLogo("image/png", LOGO_MAX_BYTES + 1) !== null);
 expectLogo("logo: empty file rejected", validateLogo("image/png", 0) !== null);
 
-// Failed-login rate limiter (pure in-memory): per-email and per-IP scopes.
-import { clearFailures, isRateLimited, recordFailure } from "../src/lib/rate-limit";
-function expectLimit(label: string, ok: boolean) {
-  if (!ok) failures++;
-  console.log(`${ok ? "PASS" : "FAIL"}  ${label}`);
-}
-for (let i = 0; i < 10; i++) recordFailure("email", "victim@test.local");
-expectLimit("rate limit: email locked after 10 failures", isRateLimited("email", "victim@test.local"));
-expectLimit("rate limit: other emails unaffected", !isRateLimited("email", "other@test.local"));
-clearFailures("email", "victim@test.local");
-expectLimit("rate limit: cleared on successful login", !isRateLimited("email", "victim@test.local"));
-for (let i = 0; i < 29; i++) recordFailure("ip", "10.0.0.9");
-expectLimit("rate limit: IP not locked at 29 failures", !isRateLimited("ip", "10.0.0.9"));
-recordFailure("ip", "10.0.0.9");
-expectLimit("rate limit: IP locked at 30 failures", isRateLimited("ip", "10.0.0.9"));
+// Webhook HMAC verification (pure).
+import { createHmac } from "crypto";
+import { verifyWebhookSignature } from "../src/lib/webhook-security";
+{
+  const expectHmac = (label: string, ok: boolean) => {
+    if (!ok) failures++;
+    console.log(`${ok ? "PASS" : "FAIL"}  ${label}`);
+  };
+  const secret = "test-secret";
+  const body = '{"carrier":"DHL","storeCode":"DEMO-01","parcels":[]}';
+  const now = Date.now();
+  const ts = String(Math.floor(now / 1000));
+  const sign = (t: string, b: string) =>
+    "sha256=" + createHmac("sha256", secret).update(`${t}.${b}`).digest("hex");
 
-console.log(failures === 0 ? "\nAll detection checks passed." : `\n${failures} check(s) FAILED.`);
-process.exit(failures === 0 ? 0 : 1);
+  expectHmac(
+    "webhook hmac: valid signature accepted",
+    verifyWebhookSignature({ secret, timestamp: ts, body, signature: sign(ts, body), nowMs: now })
+  );
+  expectHmac(
+    "webhook hmac: tampered body rejected",
+    !verifyWebhookSignature({ secret, timestamp: ts, body: body + " ", signature: sign(ts, body), nowMs: now })
+  );
+  const staleTs = String(Math.floor(now / 1000) - 600);
+  expectHmac(
+    "webhook hmac: stale timestamp rejected (replay)",
+    !verifyWebhookSignature({ secret, timestamp: staleTs, body, signature: sign(staleTs, body), nowMs: now })
+  );
+  expectHmac(
+    "webhook hmac: wrong secret rejected",
+    !verifyWebhookSignature({ secret: "other", timestamp: ts, body, signature: sign(ts, body), nowMs: now })
+  );
+}
+
+// Failed-login rate limiter (in-memory backend): per-email and per-IP scopes.
+import { clearFailures, isRateLimited, recordFailure } from "../src/lib/rate-limit";
+
+async function rateLimitChecks() {
+  const expectLimit = (label: string, ok: boolean) => {
+    if (!ok) failures++;
+    console.log(`${ok ? "PASS" : "FAIL"}  ${label}`);
+  };
+  for (let i = 0; i < 10; i++) await recordFailure("email", "victim@test.local");
+  expectLimit("rate limit: email locked after 10 failures", await isRateLimited("email", "victim@test.local"));
+  expectLimit("rate limit: other emails unaffected", !(await isRateLimited("email", "other@test.local")));
+  await clearFailures("email", "victim@test.local");
+  expectLimit("rate limit: cleared on successful login", !(await isRateLimited("email", "victim@test.local")));
+  for (let i = 0; i < 29; i++) await recordFailure("ip", "10.0.0.9");
+  expectLimit("rate limit: IP not locked at 29 failures", !(await isRateLimited("ip", "10.0.0.9")));
+  await recordFailure("ip", "10.0.0.9");
+  expectLimit("rate limit: IP locked at 30 failures", await isRateLimited("ip", "10.0.0.9"));
+}
+
+rateLimitChecks().then(() => {
+  console.log(failures === 0 ? "\nAll detection checks passed." : `\n${failures} check(s) FAILED.`);
+  process.exit(failures === 0 ? 0 : 1);
+});

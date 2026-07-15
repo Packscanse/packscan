@@ -5,10 +5,16 @@ import type { NotificationProvider, NotificationRequest } from "./types";
  * Stub provider: records what WOULD have been sent, in the DB and the server
  * log, so the pickup workflow is fully wired without SMS/email credentials.
  */
+/** Contact data must not leak into server logs (GDPR): keep edges only. */
+function maskContact(value: string): string {
+  if (value.length <= 4) return "***";
+  return `${value.slice(0, 2)}…${value.slice(-2)}`;
+}
+
 export class LogNotificationProvider implements NotificationProvider {
   async send(request: NotificationRequest) {
     console.log(
-      `[notification:would-send] ${request.channel} to ${request.recipient}: "${request.message}"`
+      `[notification:would-send] ${request.channel} to ${maskContact(request.recipient)} (package ${request.packageId})`
     );
     await prisma.notification.create({
       data: {

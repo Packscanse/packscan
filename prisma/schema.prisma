@@ -169,6 +169,8 @@ model Package {
   @@unique([storeId, trackingNumber, direction])
   @@index([storeId, status])
   @@index([trackingNumber])
+  // Chain-wide shelf aging aggregates filter on status alone.
+  @@index([status])
 }
 
 // Append-only audit log; Package.status is the current-state cache.
@@ -197,6 +199,8 @@ model ScanEvent {
 
   @@index([packageId])
   @@index([storeId, scannedAt])
+  // Chain-wide period reports (dwell, hour profile, settlement) range on time alone.
+  @@index([scannedAt])
 }
 
 // Proof of handover recorded on the PICKED_UP transition: what the clerk

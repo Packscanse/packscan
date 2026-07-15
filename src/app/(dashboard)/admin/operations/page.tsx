@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { getRequiredManagerSession, managedStoreId } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { formatDuration } from "@/lib/duration";
+import { hourProfileUtc, pickupStats, returnAgingCounts, shelfAging } from "@/lib/reports";
 import { CARRIER_LABELS, CARRIER_PROVIDERS } from "@/lib/carriers";
 import { dispatchNowAction, requeueOutboxAction } from "@/actions/operations";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -76,69 +77,62 @@ export default async function OperationsPage() {
         : Promise.resolve(null),
     ]);
 
-  // Last-30-days volumes and dwell: what came in per carrier, what went
-  // out, and how long parcels sat before pickup (avg + longest).
-  const [receivedPeriod, pickedUpPeriod, intakePeriod] = await Promise.all([
-    prisma.package.groupBy({
-      by: ["storeId", "carrier"],
-      where: { createdAt: { gte: periodStart }, direction: "INBOUND", ...(scope && { storeId: scope }) },
-      _count: { _all: true },
-    }),
-    prisma.scanEvent.findMany({
-      where: { toStatus: "PICKED_UP", scannedAt: { gte: periodStart }, ...(scope && { storeId: scope }) },
-      select: { storeId: true, scannedAt: true, package: { select: { createdAt: true } } },
-    }),
-    // Intake events (first scans) for the hour-of-day staffing profile.
-    prisma.scanEvent.findMany({
-      where: { fromStatus: null, scannedAt: { gte: periodStart }, ...(scope && { storeId: scope }) },
-      select: { scannedAt: true },
-    }),
-  ]);
+  // Last-30-days rollups — aggregated in the database so this page costs
+  // the same at 1000 stores as at one.
+  const [receivedPeriod, pickupPeriodStats, hourBuckets, agingRows, returnAging] =
+    await Promise.all([
+      prisma.package.groupBy({
+        by: ["storeId", "carrier"],
+        where: { createdAt: { gte: periodStart }, direction: "INBOUND", ...(scope && { storeId: scope }) },
+        _count: { _all: true },
+      }),
+      pickupStats(periodStart, scope),
+      hourProfileUtc(periodStart, scope),
+      shelfAging(scope),
+      returnAgingCounts(returnAgeCutoff, scope),
+    ]);
 
   // Hour-of-day profile (0-23): when parcels arrive vs. get picked up —
-  // the owner's staffing planner.
+  // the owner's staffing planner. Buckets come back in UTC; rotate them
+  // into the server's display timezone.
+  const tzShift = Math.round(-new Date().getTimezoneOffset() / 60);
   const receivedByHour = Array.from({ length: 24 }, () => 0);
   const pickedByHour = Array.from({ length: 24 }, () => 0);
-  for (const e of intakePeriod) receivedByHour[e.scannedAt.getHours()]++;
-  for (const e of pickedUpPeriod) pickedByHour[e.scannedAt.getHours()]++;
+  for (const b of hourBuckets) {
+    const hour = (b.hour + tzShift + 24) % 24;
+    receivedByHour[hour] += b.received;
+    pickedByHour[hour] += b.pickedUp;
+  }
   const hourMax = Math.max(1, ...receivedByHour, ...pickedByHour);
 
   const today = new Date();
   const defaultMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
 
-  // Shelf aging is per-store because deadlines are per-store.
-  const aging = await Promise.all(
-    stores.map(async (store) => {
-      const deadlineCutoff = new Date(Date.now() - store.pickupDeadlineDays * 24 * 60 * 60 * 1000);
-      const [overdue, returnAging, waiting] = await Promise.all([
-        prisma.package.count({
-          where: { storeId: store.id, status: "AWAITING_PICKUP", createdAt: { lt: deadlineCutoff } },
-        }),
-        prisma.package.count({
-          where: { storeId: store.id, status: "RETURN_PENDING", updatedAt: { lt: returnAgeCutoff } },
-        }),
-        prisma.package.findMany({
-          where: { storeId: store.id, status: "AWAITING_PICKUP" },
-          select: { createdAt: true },
-        }),
-      ]);
-      const now = Date.now();
-      const ages = waiting.map((p) => now - p.createdAt.getTime());
-      const avgWaitMs = ages.length ? ages.reduce((a, b) => a + b, 0) / ages.length : null;
-      const oldestWaitMs = ages.length ? Math.max(...ages) : null;
-      return { store, overdue, returnAging, waitingCount: ages.length, avgWaitMs, oldestWaitMs };
-    })
-  );
+  const agingByStore = new Map(agingRows.map((r) => [r.storeId, r]));
+  const aging = stores.map((store) => {
+    const row = agingByStore.get(store.id);
+    return {
+      store,
+      overdue: row?.overdue ?? 0,
+      returnAging: returnAging.get(store.id) ?? 0,
+      waitingCount: row?.waiting ?? 0,
+      avgWaitMs: row?.avgWaitMs ?? null,
+      oldestWaitMs: row?.oldestWaitMs ?? null,
+    };
+  });
 
   // Per-store 30-day rollup: received per carrier (with share) + pickup dwell.
+  const pickupByStore = new Map(pickupPeriodStats.map((r) => [r.storeId, r]));
   const periodFor = (storeId: string) => {
     const received = receivedPeriod.filter((r) => r.storeId === storeId);
     const receivedTotal = received.reduce((sum, r) => sum + r._count._all, 0);
-    const dwells = pickedUpPeriod
-      .filter((e) => e.storeId === storeId)
-      .map((e) => e.scannedAt.getTime() - e.package.createdAt.getTime());
-    const avgDwellMs = dwells.length ? dwells.reduce((a, b) => a + b, 0) / dwells.length : null;
-    return { received, receivedTotal, pickedUp: dwells.length, avgDwellMs };
+    const pickup = pickupByStore.get(storeId);
+    return {
+      received,
+      receivedTotal,
+      pickedUp: pickup?.pickedUp ?? 0,
+      avgDwellMs: pickup ? pickup.avgDwellMs : null,
+    };
   };
 
   const receivedFor = (storeId: string) =>

@@ -2,15 +2,6 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { CARRIER_CODES, normalizeTrackingNumber } from "@/lib/carriers";
 
-/**
- * Inbound half of "Carrier API → platform → counter workflow": carriers
- * push announced-parcel events here (webhook or polled feed adapter) and
- * they land as PreAdvice — which pre-fills intake, fixes carrier
- * attribution, and powers the Expected page. Upsert semantics: a
- * re-announcement UPDATES contact details while the parcel is still
- * ANNOUNCED; once RECEIVED it is never touched.
- */
-
 export const CarrierIngestSchema = z.object({
   // Real carriers only — nobody announces an UNKNOWN parcel.
   carrier: z.enum(CARRIER_CODES),

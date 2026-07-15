@@ -25,15 +25,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const ip =
           request.headers?.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
 
-        if (isRateLimited("email", email) || isRateLimited("ip", ip)) return null;
+        if ((await isRateLimited("email", email)) || (await isRateLimited("ip", ip))) return null;
 
         const user = await prisma.user.findUnique({
           where: { email },
           include: { store: { select: { sessionIdleMinutes: true } } },
         });
         if (!user || !user.active) {
-          recordFailure("email", email);
-          recordFailure("ip", ip);
+          await Promise.all([recordFailure("email", email), recordFailure("ip", ip)]);
           return null;
         }
         // Counter PIN signs in for scanning; administration always needs
@@ -42,11 +41,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           ? user.pinHash !== null && (await bcrypt.compare(parsed.data.pin, user.pinHash))
           : await bcrypt.compare(parsed.data.password!, user.passwordHash);
         if (!valid) {
-          recordFailure("email", email);
-          recordFailure("ip", ip);
+          await Promise.all([recordFailure("email", email), recordFailure("ip", ip)]);
           return null;
         }
-        clearFailures("email", email);
+        await clearFailures("email", email);
         return {
           id: user.id,
           email: user.email,
