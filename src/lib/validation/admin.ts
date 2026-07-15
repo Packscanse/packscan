@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { CARRIER_CODES } from "@/lib/carriers";
+import { optionalTrimmed } from "./common";
 
 export const CreateStoreSchema = z.object({
   name: z.string().trim().min(2).max(120),
@@ -9,10 +11,7 @@ export const CreateStoreSchema = z.object({
     .max(16)
     .regex(/^[A-Za-z0-9-]+$/, "Letters, digits and dashes only")
     .transform((v) => v.toUpperCase()),
-  address: z.preprocess(
-    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
-    z.string().trim().max(200).optional()
-  ),
+  address: optionalTrimmed(200),
 });
 
 export const UpdateStoreIdleSchema = z.object({
@@ -28,7 +27,7 @@ export const UpdateStoreDeadlineSchema = z.object({
 /** One pre-advice line: TRACKING,CARRIER[,NAME][,PHONE][,EMAIL] */
 export const PreAdviceLineSchema = z.object({
   trackingNumber: z.string().trim().min(6).max(64).transform((v) => v.toUpperCase().replace(/\s+/g, "")),
-  carrier: z.enum(["DHL", "POSTNORD", "POSTNL", "FEDEX", "SCHENKER", "UNKNOWN"]),
+  carrier: z.enum([...CARRIER_CODES, "UNKNOWN"]),
   customerName: z.string().trim().max(120).optional(),
   customerPhone: z.string().trim().max(32).optional(),
   customerEmail: z.string().trim().max(254).optional(),
@@ -66,10 +65,7 @@ export const SetUserStoreSchema = z.object({
 export const UpdateStoreDetailsSchema = z.object({
   storeId: z.string().min(1),
   name: z.string().trim().min(2).max(120),
-  address: z.preprocess(
-    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
-    z.string().trim().max(200).optional()
-  ),
+  address: optionalTrimmed(200),
 });
 
 export const SetPinSchema = z.object({

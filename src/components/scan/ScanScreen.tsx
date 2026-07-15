@@ -110,6 +110,20 @@ export function ScanScreen({
     }
   }
 
+  /** Shared handling of a scan submission's outcome (queued/handover/result). */
+  function applyOutcome(res: ProcessScanResult | { queued: true }, method: ScanInputMethod) {
+    if ("queued" in res) {
+      setResult(null); // the offline banner carries the message
+      return;
+    }
+    if (!res.ok && res.code === "VERIFICATION_REQUIRED") {
+      setHandover({ ...res.handover, inputMethod: method });
+      setHandoverError(null);
+      return;
+    }
+    setResult(res);
+  }
+
   function autoConfirm(args: {
     code: string;
     method: ScanInputMethod;
@@ -131,16 +145,7 @@ export function ScanScreen({
       setPendingScan(null);
       setCustomer({ name: "", phone: "", email: "", notes: "", shelf: "" });
       setPreAdviceMatched(false);
-      if ("queued" in res) {
-        setResult(null);
-        return;
-      }
-      if (!res.ok && res.code === "VERIFICATION_REQUIRED") {
-        setHandover({ ...res.handover, inputMethod: args.method });
-        setHandoverError(null);
-        return;
-      }
-      setResult(res);
+      applyOutcome(res, args.method);
     });
   }
 
@@ -207,15 +212,7 @@ export function ScanScreen({
         notes: customer.notes,
         shelfLocation: customer.shelf,
       });
-      if ("queued" in res) {
-        setResult(null);
-      } else if (!res.ok && res.code === "VERIFICATION_REQUIRED") {
-        // Existing AWAITING_PICKUP package: switch to the handover step.
-        setHandover({ ...res.handover, inputMethod: pendingScan.method });
-        setHandoverError(null);
-      } else {
-        setResult(res);
-      }
+      applyOutcome(res, pendingScan.method);
       setPendingScan(null);
       setCustomer({ name: "", phone: "", email: "", notes: "", shelf: "" });
       setPreAdviceMatched(false);

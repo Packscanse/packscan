@@ -4,8 +4,9 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { getRequiredSession } from "@/lib/session";
+import { getRequiredSession, hasManagementAccess } from "@/lib/session";
 import {
+  BCRYPT_ROUNDS,
   resetUserPassword,
   setUserActive,
   setUserPin,
@@ -37,13 +38,6 @@ function isFullAdmin(session: ActiveSession): boolean {
   return session.user.role === "ADMIN" && session.user.authMethod === "PASSWORD";
 }
 
-function isStoreManager(session: ActiveSession): boolean {
-  return (
-    (session.user.role === "ADMIN" || session.user.role === "MANAGER") &&
-    session.user.authMethod === "PASSWORD"
-  );
-}
-
 async function requireAdmin(): Promise<string | null> {
   const session = await getRequiredSession();
   return isFullAdmin(session) ? null : "Forbidden";
@@ -52,7 +46,7 @@ async function requireAdmin(): Promise<string | null> {
 /** ADMIN or store MANAGER (password session). */
 async function requireManagerSession() {
   const session = await getRequiredSession();
-  return isStoreManager(session)
+  return hasManagementAccess(session)
     ? ({ ok: true, session, isAdmin: session.user.role === "ADMIN" } as const)
     : ({ ok: false, error: "Forbidden" } as const);
 }
@@ -157,7 +151,7 @@ export async function createUserAction(
         name: parsed.data.name,
         role: parsed.data.role,
         storeId: parsed.data.storeId,
-        passwordHash: await bcrypt.hash(parsed.data.password, 10),
+        passwordHash: await bcrypt.hash(parsed.data.password, BCRYPT_ROUNDS),
       },
     });
     revalidatePath("/admin/users");

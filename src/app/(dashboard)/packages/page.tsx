@@ -6,6 +6,7 @@ import { STATUS_LABELS } from "@/lib/status";
 import { PackageTable } from "@/components/packages/PackageTable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 
 const STATUSES = Object.keys(STATUS_LABELS) as PackageStatus[];
 const DIRECTIONS: Direction[] = ["INBOUND", "OUTBOUND"];
@@ -127,11 +128,10 @@ export default async function PackagesPage({
           className="w-full sm:w-64"
           aria-label="Search packages"
         />
-        <select
+        <NativeSelect
           name="status"
           defaultValue={overdue ? "" : (status ?? "")}
           aria-label="Filter by status"
-          className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs"
         >
           <option value="">All statuses</option>
           {STATUSES.map((s) => (
@@ -139,12 +139,11 @@ export default async function PackagesPage({
               {STATUS_LABELS[s]}
             </option>
           ))}
-        </select>
-        <select
+        </NativeSelect>
+        <NativeSelect
           name="direction"
           defaultValue={direction ?? ""}
           aria-label="Filter by direction"
-          className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs"
         >
           <option value="">Both directions</option>
           {DIRECTIONS.map((d) => (
@@ -152,7 +151,7 @@ export default async function PackagesPage({
               {d.charAt(0) + d.slice(1).toLowerCase()}
             </option>
           ))}
-        </select>
+        </NativeSelect>
         <label className="grid gap-1 text-xs text-muted-foreground">
           Registered from
           <Input type="date" name="from" defaultValue={params.from ?? ""} className="h-9" />

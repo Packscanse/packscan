@@ -32,7 +32,9 @@ export function PackageTable({ packages }: { packages: Package[] }) {
     <>
       {/* Handhelds get tappable cards; the table needs a desktop. */}
       <div className="grid gap-2 sm:hidden">
-        {packages.map((pkg) => (
+        {packages.map((pkg) => {
+          const waiting = waitingFor(pkg);
+          return (
           <Link
             key={pkg.id}
             href={`/packages/${pkg.id}`}
@@ -56,10 +58,11 @@ export function PackageTable({ packages }: { packages: Package[] }) {
             <p className="text-xs text-muted-foreground">
               {pkg.direction === "INBOUND" ? "Inbound" : "Outbound"} · updated{" "}
               {format(pkg.updatedAt, "MMM d, HH:mm")}
-              {waitingFor(pkg) && ` · waiting ${waitingFor(pkg)}`}
+              {waiting && ` · waiting ${waiting}`}
             </p>
           </Link>
-        ))}
+          );
+        })}
       </div>
 
       <div className="hidden sm:block">

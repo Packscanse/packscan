@@ -1,6 +1,5 @@
 import { notFound, redirect } from "next/navigation";
 import type { Session } from "next-auth";
-import type { Role } from "@prisma/client";
 import { auth } from "@/auth";
 
 export async function getRequiredSession(): Promise<Session> {
@@ -22,17 +21,24 @@ export async function getRequiredAdminSession(): Promise<Session> {
 }
 
 /**
+ * ADMIN or store MANAGER with a password-established session — the single
+ * definition of "may administer". PIN sessions never qualify, whatever the
+ * account's role.
+ */
+export function hasManagementAccess(session: Session): boolean {
+  return (
+    (session.user.role === "ADMIN" || session.user.role === "MANAGER") &&
+    session.user.authMethod === "PASSWORD"
+  );
+}
+
+/**
  * ADMIN (all stores) or MANAGER (their own store only), password session
  * required. Pages using this must scope their queries with managedStoreId.
  */
 export async function getRequiredManagerSession(): Promise<Session> {
   const session = await getRequiredSession();
-  if (
-    (session.user.role !== "ADMIN" && session.user.role !== "MANAGER") ||
-    session.user.authMethod !== "PASSWORD"
-  ) {
-    notFound();
-  }
+  if (!hasManagementAccess(session)) notFound();
   return session;
 }
 
@@ -41,8 +47,3 @@ export function managedStoreId(session: Session): string | undefined {
   return session.user.role === "ADMIN" ? undefined : session.user.storeId;
 }
 
-export function assertRole(session: Session, ...roles: Role[]): void {
-  if (!roles.includes(session.user.role)) {
-    throw new Error("Forbidden: insufficient role");
-  }
-}

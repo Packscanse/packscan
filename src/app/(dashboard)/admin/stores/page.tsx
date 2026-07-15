@@ -9,6 +9,7 @@ import { CreateStoreForm } from "@/components/admin/CreateStoreForm";
 import { StoreDetailsForm } from "@/components/admin/StoreDetailsForm";
 import { StoreLogoForm } from "@/components/admin/StoreLogoForm";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -59,40 +60,40 @@ export default async function AdminStoresPage() {
                   <TableCell>
                     <form action={updateStoreIdleAction} className="flex items-center gap-2">
                       <input type="hidden" name="storeId" value={store.id} />
-                      <select
+                      <NativeSelect
                         name="sessionIdleMinutes"
                         // Remount when the saved value changes so the RSC
                         // refresh isn't masked by stale uncontrolled state.
                         key={store.sessionIdleMinutes}
                         defaultValue={store.sessionIdleMinutes}
                         aria-label={`Inactivity logout for ${store.name}`}
-                        className="h-8 rounded-md border border-input bg-transparent px-2 text-sm"
+                        className="h-8 px-2 shadow-none"
                       >
                         {Array.from({ length: 10 }, (_, i) => i + 1).map((min) => (
                           <option key={min} value={min}>
                             {min} min
                           </option>
                         ))}
-                      </select>
+                      </NativeSelect>
                       <SubmitButton pendingText="Saving…">Save</SubmitButton>
                     </form>
                   </TableCell>
                   <TableCell>
                     <form action={updateStoreDeadlineAction} className="flex items-center gap-2">
                       <input type="hidden" name="storeId" value={store.id} />
-                      <select
+                      <NativeSelect
                         name="pickupDeadlineDays"
                         key={store.pickupDeadlineDays}
                         defaultValue={store.pickupDeadlineDays}
                         aria-label={`Pickup deadline for ${store.name}`}
-                        className="h-8 rounded-md border border-input bg-transparent px-2 text-sm"
+                        className="h-8 px-2 shadow-none"
                       >
                         {[3, 5, 7, 10, 14, 21, 30].map((days) => (
                           <option key={days} value={days}>
                             {days} days
                           </option>
                         ))}
-                      </select>
+                      </NativeSelect>
                       <SubmitButton pendingText="Saving…">Save</SubmitButton>
                     </form>
                   </TableCell>

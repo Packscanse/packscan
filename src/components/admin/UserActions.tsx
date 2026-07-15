@@ -8,16 +8,11 @@ import {
   setUserPinAction,
   setUserRoleAction,
   setUserStoreAction,
-  type AdminFormState,
 } from "@/actions/admin";
+import { FormStateLine } from "./FormStateLine";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
-function StateLine({ state }: { state: AdminFormState | undefined }) {
-  if (state?.error) return <p className="text-xs text-destructive" role="alert">{state.error}</p>;
-  if (state?.success) return <p className="text-xs text-green-700 dark:text-green-400">{state.success}</p>;
-  return null;
-}
+import { NativeSelect } from "@/components/ui/native-select";
 
 /**
  * Per-row lifecycle controls on the admin Users page. Self-targeting rules
@@ -53,23 +48,23 @@ export function UserActions({
     <div className="grid max-w-xs gap-2">
       <form action={roleAction} className="flex items-center gap-2">
         <input type="hidden" name="userId" value={userId} />
-        <select
+        <NativeSelect
           name="role"
           key={role}
           defaultValue={role}
           disabled={isSelf}
           aria-label="Role"
-          className="h-8 rounded-md border border-input bg-transparent px-2 text-sm disabled:opacity-50"
+          className="h-8 px-2 shadow-none disabled:opacity-50"
         >
           <option value="CLERK">Clerk</option>
           <option value="MANAGER">Manager</option>
           {actorIsAdmin && <option value="ADMIN">Admin</option>}
-        </select>
+        </NativeSelect>
         <Button type="submit" variant="outline" size="sm" disabled={isSelf || rolePending}>
           {rolePending ? "Saving…" : "Set role"}
         </Button>
       </form>
-      <StateLine state={roleState} />
+      <FormStateLine state={roleState} />
 
       <form action={activeAction}>
         <input type="hidden" name="userId" value={userId} />
@@ -83,7 +78,7 @@ export function UserActions({
           {activePending ? "Saving…" : active ? "Deactivate" : "Reactivate"}
         </Button>
       </form>
-      <StateLine state={activeState} />
+      <FormStateLine state={activeState} />
 
       <form action={pwAction} className="flex items-center gap-2">
         <input type="hidden" name="userId" value={userId} />
@@ -102,30 +97,30 @@ export function UserActions({
           {pwPending ? "Saving…" : "Reset"}
         </Button>
       </form>
-      <StateLine state={pwState} />
+      <FormStateLine state={pwState} />
 
       {actorIsAdmin && stores.length > 1 && (
         <>
           <form action={storeAction} className="flex items-center gap-2">
             <input type="hidden" name="userId" value={userId} />
-            <select
+            <NativeSelect
               name="storeId"
               key={storeId}
               defaultValue={storeId}
               aria-label="Store"
-              className="h-8 max-w-40 rounded-md border border-input bg-transparent px-2 text-sm"
+              className="h-8 max-w-40 px-2 shadow-none"
             >
               {stores.map((store) => (
                 <option key={store.id} value={store.id}>
                   {store.name} ({store.code})
                 </option>
               ))}
-            </select>
+            </NativeSelect>
             <Button type="submit" variant="outline" size="sm" disabled={storePending}>
               {storePending ? "Moving…" : "Move"}
             </Button>
           </form>
-          <StateLine state={storeState} />
+          <FormStateLine state={storeState} />
         </>
       )}
 
@@ -148,7 +143,7 @@ export function UserActions({
           {pinPending ? "Saving…" : "Set PIN"}
         </Button>
       </form>
-      <StateLine state={pinState} />
+      <FormStateLine state={pinState} />
     </div>
   );
 }

@@ -1,6 +1,11 @@
 "use client";
 
-import { CARRIER_LABELS, type CarrierCode, type DetectionResult } from "@/lib/carriers";
+import {
+  CARRIER_CODES,
+  CARRIER_LABELS,
+  type CarrierCode,
+  type DetectionResult,
+} from "@/lib/carriers";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -10,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const ALL_CARRIERS: CarrierCode[] = ["DHL", "POSTNORD", "POSTNL", "FEDEX", "SCHENKER", "UNKNOWN"];
+const ALL_CARRIERS: CarrierCode[] = [...CARRIER_CODES, "UNKNOWN"];
 
 /**
  * Detected carrier with an always-available manual override — never a

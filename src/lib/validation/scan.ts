@@ -1,17 +1,14 @@
 import { z } from "zod";
 import { SCAN_FLOWS } from "@/lib/status";
-
-const optionalTrimmed = (max: number) =>
-  z.preprocess(
-    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
-    z.string().trim().max(max).optional()
-  );
+import { CARRIER_CODES } from "@/lib/carriers";
+import { ID_TYPES } from "@/lib/verification";
+import { optionalTrimmed } from "./common";
 
 export const HandoverInputSchema = z.object({
   // QR payloads from carrier apps can be long URLs — allow generous length.
   presentedCode: optionalTrimmed(512),
   idChecked: z.boolean(),
-  idType: z.enum(["PASSPORT", "DRIVERS_LICENSE", "NATIONAL_ID", "OTHER"]).optional(),
+  idType: z.enum(ID_TYPES).optional(),
   collectorName: optionalTrimmed(120),
   override: z.boolean().optional(),
   overrideReason: optionalTrimmed(300),
@@ -22,7 +19,7 @@ export const CourierRefSchema = optionalTrimmed(80);
 export const ScanInputSchema = z.object({
   trackingNumber: z.string().trim().min(6).max(64),
   flow: z.enum(SCAN_FLOWS),
-  carrier: z.enum(["DHL", "POSTNORD", "POSTNL", "FEDEX", "SCHENKER", "UNKNOWN"]),
+  carrier: z.enum([...CARRIER_CODES, "UNKNOWN"]),
   carrierManual: z.boolean(),
   inputMethod: z.enum(["CAMERA", "HARDWARE_SCANNER", "MANUAL_ENTRY"]),
   customerName: optionalTrimmed(120),

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getRequiredSession } from "@/lib/session";
+import { getRequiredSession, hasManagementAccess } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 
 export default async function AdminLayout({
@@ -9,12 +9,7 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const session = await getRequiredSession();
-  if (
-    (session.user.role !== "ADMIN" && session.user.role !== "MANAGER") ||
-    session.user.authMethod !== "PASSWORD"
-  ) {
-    notFound();
-  }
+  if (!hasManagementAccess(session)) notFound();
 
   return (
     <div className="grid gap-4">

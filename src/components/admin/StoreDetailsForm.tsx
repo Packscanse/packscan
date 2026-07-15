@@ -1,15 +1,10 @@
 "use client";
 
 import { useActionState } from "react";
-import { updateStoreDetailsAction, type AdminFormState } from "@/actions/admin";
+import { updateStoreDetailsAction } from "@/actions/admin";
+import { FormStateLine } from "./FormStateLine";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
-function StateLine({ state }: { state: AdminFormState | undefined }) {
-  if (state?.error) return <p className="text-xs text-destructive" role="alert">{state.error}</p>;
-  if (state?.success) return <p className="text-xs text-green-700 dark:text-green-400">{state.success}</p>;
-  return null;
-}
 
 /** Edit a store's name and address after creation. */
 export function StoreDetailsForm({
@@ -48,7 +43,7 @@ export function StoreDetailsForm({
       <Button type="submit" variant="outline" size="sm" disabled={pending} className="justify-self-start">
         {pending ? "Saving…" : "Save"}
       </Button>
-      <StateLine state={state} />
+      <FormStateLine state={state} />
     </form>
   );
 }

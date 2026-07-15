@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Session } from "next-auth";
 import { logoutAction } from "@/actions/auth";
+import { hasManagementAccess } from "@/lib/session";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -17,8 +18,7 @@ export function NavBar({
   // Administration (admins chain-wide, managers their own store) needs a
   // password session; hide the entry point for PIN sessions (the
   // server-side guards enforce it regardless).
-  const showAdmin =
-    (isAdmin || session.user.role === "MANAGER") && session.user.authMethod === "PASSWORD";
+  const showAdmin = hasManagementAccess(session);
 
   return (
     <header className="border-b bg-background">

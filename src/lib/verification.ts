@@ -25,7 +25,8 @@ export interface HandoverRecord {
   overrideReason: string | null;
 }
 
-export const ID_TYPES: IdType[] = ["PASSPORT", "DRIVERS_LICENSE", "NATIONAL_ID", "OTHER"];
+/** Tuple (not IdType[]) so zod enums can derive from the same source. */
+export const ID_TYPES = ["PASSPORT", "DRIVERS_LICENSE", "NATIONAL_ID", "OTHER"] as const satisfies readonly IdType[];
 
 /** Outcome of classifying a scan made during the handover step. */
 export type HandoverScan =

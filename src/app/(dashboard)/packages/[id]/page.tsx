@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
-import { getRequiredSession } from "@/lib/session";
+import { getRequiredSession, hasManagementAccess } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { NEXT_STATUS, STATUS_LABELS, canCancel, canMarkForReturn } from "@/lib/status";
 import {
@@ -129,7 +129,7 @@ export default async function PackageDetailPage({
           customerName={pkg.customerName}
           trackingNumber={pkg.trackingNumber}
           shelfLocation={pkg.shelfLocation}
-          canOverride={(session.user.role === "ADMIN" || session.user.role === "MANAGER") && session.user.authMethod === "PASSWORD"}
+          canOverride={hasManagementAccess(session)}
         />
       )}
 

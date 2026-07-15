@@ -1,14 +1,9 @@
 "use client";
 
 import { useActionState } from "react";
-import { updateStoreLogoAction, type AdminFormState } from "@/actions/admin";
+import { updateStoreLogoAction } from "@/actions/admin";
+import { FormStateLine } from "./FormStateLine";
 import { Button } from "@/components/ui/button";
-
-function StateLine({ state }: { state: AdminFormState | undefined }) {
-  if (state?.error) return <p className="text-xs text-destructive" role="alert">{state.error}</p>;
-  if (state?.success) return <p className="text-xs text-green-700 dark:text-green-400">{state.success}</p>;
-  return null;
-}
 
 /** Upload/remove the store logo (PNG/JPEG/SVG/WebP ≤256KB, DB-stored). */
 export function StoreLogoForm({
@@ -54,7 +49,7 @@ export function StoreLogoForm({
           </Button>
         </form>
       )}
-      <StateLine state={state} />
+      <FormStateLine state={state} />
     </div>
   );
 }

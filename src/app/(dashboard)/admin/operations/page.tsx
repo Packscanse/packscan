@@ -7,6 +7,7 @@ import { CARRIER_LABELS, CARRIER_PROVIDERS } from "@/lib/carriers";
 import { dispatchNowAction, requeueOutboxAction } from "@/actions/operations";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -385,10 +386,9 @@ export default async function OperationsPage() {
             {outboxCount("NOT_CONFIGURED") > 0 && (
               <form action={requeueOutboxAction} className="flex items-end gap-2">
                 <input type="hidden" name="status" value="NOT_CONFIGURED" />
-                <select
+                <NativeSelect
                   name="carrier"
                   aria-label="Carrier to re-queue"
-                  className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs"
                 >
                   <option value="">All carriers</option>
                   {CARRIER_PROVIDERS.map((p) => (
@@ -396,7 +396,7 @@ export default async function OperationsPage() {
                       {CARRIER_LABELS[p.code]}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
                 <SubmitButton variant="outline" pendingText="Re-queueing…">
                   Re-queue awaiting-credentials
                 </SubmitButton>

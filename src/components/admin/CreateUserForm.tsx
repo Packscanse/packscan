@@ -5,6 +5,7 @@ import { createUserAction } from "@/actions/admin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
 
 export function CreateUserForm({
   stores,
@@ -32,31 +33,29 @@ export function CreateUserForm({
       </div>
       <div className="grid gap-2">
         <Label htmlFor="user-role">Role</Label>
-        <select
+        <NativeSelect
           id="user-role"
           name="role"
           defaultValue="CLERK"
-          className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs"
         >
           <option value="CLERK">Clerk</option>
           <option value="MANAGER">Manager</option>
           {canCreateAdmin && <option value="ADMIN">Admin</option>}
-        </select>
+        </NativeSelect>
       </div>
       <div className="grid gap-2">
         <Label htmlFor="user-store">Store</Label>
-        <select
+        <NativeSelect
           id="user-store"
           name="storeId"
           required
-          className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs"
         >
           {stores.map((store) => (
             <option key={store.id} value={store.id}>
               {store.name} ({store.code})
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </div>
       {state?.error && <p className="text-sm text-destructive" role="alert">{state.error}</p>}
       {state?.success && <p className="text-sm text-green-700 dark:text-green-400">{state.success}</p>}

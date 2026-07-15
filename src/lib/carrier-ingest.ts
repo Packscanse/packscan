@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { normalizeTrackingNumber } from "@/lib/carriers";
+import { CARRIER_CODES, normalizeTrackingNumber } from "@/lib/carriers";
 
 /**
  * Inbound half of "Carrier API → platform → counter workflow": carriers
@@ -12,7 +12,8 @@ import { normalizeTrackingNumber } from "@/lib/carriers";
  */
 
 export const CarrierIngestSchema = z.object({
-  carrier: z.enum(["DHL", "POSTNORD", "POSTNL", "FEDEX", "SCHENKER"]),
+  // Real carriers only — nobody announces an UNKNOWN parcel.
+  carrier: z.enum(CARRIER_CODES),
   storeCode: z.string().trim().min(2).max(16),
   parcels: z
     .array(

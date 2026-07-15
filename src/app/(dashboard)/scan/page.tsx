@@ -1,11 +1,11 @@
-import { getRequiredSession } from "@/lib/session";
+import { getRequiredSession, hasManagementAccess } from "@/lib/session";
 import { ScanScreen } from "@/components/scan/ScanScreen";
 
 export default async function ScanPage() {
   const session = await getRequiredSession();
   return (
     <ScanScreen
-      canOverride={(session.user.role === "ADMIN" || session.user.role === "MANAGER") && session.user.authMethod === "PASSWORD"}
+      canOverride={hasManagementAccess(session)}
       sessionUserId={session.user.id}
     />
   );

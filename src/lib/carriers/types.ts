@@ -1,4 +1,11 @@
-export type CarrierCode = "DHL" | "POSTNORD" | "POSTNL" | "FEDEX" | "SCHENKER" | "UNKNOWN";
+/**
+ * The single source for carrier identifiers. Everything else — zod enums,
+ * UI pickers, the ingest schema — derives from this tuple, so adding a
+ * carrier is: extend here + the Prisma enum, add a rules module.
+ */
+export const CARRIER_CODES = ["DHL", "POSTNORD", "POSTNL", "FEDEX", "SCHENKER"] as const;
+
+export type CarrierCode = (typeof CARRIER_CODES)[number] | "UNKNOWN";
 
 export type Confidence = "high" | "medium" | "low";
 
@@ -39,9 +46,6 @@ export interface PickupPolicy {
 export interface CarrierEventReport {
   status: "REPORTED" | "NOT_CONFIGURED";
 }
-
-/** @deprecated Use CarrierEventReport. */
-export type ArrivalReport = CarrierEventReport;
 
 /** Proof-of-delivery summary pushed with the pickup event. */
 export interface PickupProof {

@@ -4,6 +4,9 @@ import { prisma } from "@/lib/prisma";
 
 export type UserAdminResult = { ok: true } | { ok: false; error: string };
 
+/** One place for the work factor: password and PIN hashing alike. */
+export const BCRYPT_ROUNDS = 10;
+
 /**
  * Lifecycle rules for staff accounts. Two invariants, both enforced inside
  * the mutation transaction:
@@ -75,7 +78,7 @@ export async function resetUserPassword(args: {
 
   await prisma.user.update({
     where: { id: target.id },
-    data: { passwordHash: await bcrypt.hash(args.password, 10) },
+    data: { passwordHash: await bcrypt.hash(args.password, BCRYPT_ROUNDS) },
   });
   return { ok: true };
 }
@@ -113,7 +116,7 @@ export async function setUserPin(args: {
 
   await prisma.user.update({
     where: { id: target.id },
-    data: { pinHash: args.pin === null ? null : await bcrypt.hash(args.pin, 10) },
+    data: { pinHash: args.pin === null ? null : await bcrypt.hash(args.pin, BCRYPT_ROUNDS) },
   });
   return { ok: true };
 }

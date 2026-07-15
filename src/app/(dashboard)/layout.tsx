@@ -1,4 +1,4 @@
-import { getRequiredSession } from "@/lib/session";
+import { getRequiredSession, hasManagementAccess } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { brandStyle } from "@/lib/branding";
 import { NavBar } from "@/components/layout/NavBar";
@@ -26,9 +26,7 @@ export default async function DashboardLayout({
       />
       {/* Bottom padding keeps content clear of the mobile tab bar. */}
       <main className="mx-auto max-w-5xl p-4 pb-24 sm:pb-4">{children}</main>
-      <MobileNav
-        isAdmin={(session.user.role === "ADMIN" || session.user.role === "MANAGER") && session.user.authMethod === "PASSWORD"}
-      />
+      <MobileNav isAdmin={hasManagementAccess(session)} />
     </div>
   );
 }
