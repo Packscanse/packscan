@@ -157,6 +157,24 @@ async function rateLimitChecks() {
   expectLimit("rate limit: IP locked at 30 failures", await isRateLimited("ip", "10.0.0.9"));
 }
 
+// i18n: every locale dictionary must have exactly the English key shape.
+import { getMessages, LOCALES } from "../src/lib/i18n";
+import { en } from "../src/lib/i18n/messages/en";
+function keyPaths(obj: Record<string, unknown>, prefix = ""): string[] {
+  return Object.entries(obj).flatMap(([k, v]) =>
+    typeof v === "object" && v !== null
+      ? keyPaths(v as Record<string, unknown>, `${prefix}${k}.`)
+      : [`${prefix}${k}`]
+  );
+}
+const enKeys = keyPaths(en).sort().join("\n");
+for (const locale of LOCALES) {
+  const keys = keyPaths(getMessages(locale) as unknown as Record<string, unknown>).sort().join("\n");
+  const ok = keys === enKeys;
+  if (!ok) failures++;
+  console.log(`${ok ? "PASS" : "FAIL"}  i18n: ${locale} dictionary matches the English key shape`);
+}
+
 rateLimitChecks().then(() => {
   console.log(failures === 0 ? "\nAll detection checks passed." : `\n${failures} check(s) FAILED.`);
   process.exit(failures === 0 ? 0 : 1);

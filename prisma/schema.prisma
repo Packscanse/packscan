@@ -18,6 +18,17 @@ enum Role {
   CLERK
 }
 
+// UI language, chosen per user on their profile.
+enum Locale {
+  SV
+  EN
+  DE
+  NL
+  NO
+  DA
+  FI
+}
+
 enum Carrier {
   DHL
   POSTNORD
@@ -130,6 +141,7 @@ model User {
   pinHash      String?
   name         String
   role         Role     @default(CLERK)
+  locale       Locale   @default(EN)
   storeId      String
   store        Store    @relation(fields: [storeId], references: [id], onDelete: Restrict)
   active       Boolean  @default(true)

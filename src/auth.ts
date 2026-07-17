@@ -53,6 +53,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           storeId: user.storeId,
           idleMinutes: user.store?.sessionIdleMinutes ?? DEFAULT_IDLE_MINUTES,
           authMethod: parsed.data.pin ? ("PIN" as const) : ("PASSWORD" as const),
+          locale: user.locale,
         };
       },
     }),
@@ -69,6 +70,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.storeId = user.storeId;
         token.idleMinutes = user.idleMinutes;
         token.authMethod = user.authMethod;
+        token.locale = user.locale;
         token.lastActivity = Date.now();
         token.checkedAt = Date.now();
         return token;
@@ -85,12 +87,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             active: true,
             role: true,
             storeId: true,
+            locale: true,
             store: { select: { sessionIdleMinutes: true } },
           },
         });
         if (!dbUser?.active) return null; // invalidates the session
         alive.role = dbUser.role;
         alive.storeId = dbUser.storeId;
+        alive.locale = dbUser.locale;
         alive.idleMinutes = dbUser.store?.sessionIdleMinutes ?? DEFAULT_IDLE_MINUTES;
         alive.checkedAt = Date.now();
       }

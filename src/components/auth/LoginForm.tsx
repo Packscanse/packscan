@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { loginAction } from "@/actions/auth";
+import type { Messages } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +19,7 @@ import {
  * the password. Administration requires a password session, so admins
  * managing stores/users sign in with the password.
  */
-export function LoginForm() {
+export function LoginForm({ t }: { t: Messages["auth"] }) {
   const [state, formAction, pending] = useActionState(loginAction, undefined);
   const [mode, setMode] = useState<"pin" | "password">("pin");
 
@@ -26,7 +27,7 @@ export function LoginForm() {
     <Card className="w-full max-w-sm">
       <CardHeader>
         <CardTitle className="text-2xl">Packscan</CardTitle>
-        <CardDescription>Sign in with your staff account</CardDescription>
+        <CardDescription>{t.subtitle}</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
         <div className="grid grid-cols-2 gap-2">
@@ -35,20 +36,20 @@ export function LoginForm() {
             variant={mode === "pin" ? "default" : "outline"}
             onClick={() => setMode("pin")}
           >
-            PIN
+            {t.pin}
           </Button>
           <Button
             type="button"
             variant={mode === "password" ? "default" : "outline"}
             onClick={() => setMode("password")}
           >
-            Password
+            {t.password}
           </Button>
         </div>
 
         <form action={formAction} className="grid gap-4">
           <div className="grid gap-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t.email}</Label>
             <Input
               id="email"
               name="email"
@@ -60,7 +61,7 @@ export function LoginForm() {
           </div>
           {mode === "pin" ? (
             <div className="grid gap-2">
-              <Label htmlFor="pin">6-digit PIN</Label>
+              <Label htmlFor="pin">{t.pinLabel}</Label>
               <Input
                 id="pin"
                 name="pin"
@@ -74,13 +75,11 @@ export function LoginForm() {
                 className="text-center text-xl tracking-[0.5em]"
                 required
               />
-              <p className="text-xs text-muted-foreground">
-                Scanning only — store and user administration needs a password sign-in.
-              </p>
+              <p className="text-xs text-muted-foreground">{t.pinHint}</p>
             </div>
           ) : (
             <div className="grid gap-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">{t.password}</Label>
               <Input
                 id="password"
                 name="password"
@@ -92,11 +91,11 @@ export function LoginForm() {
           )}
           {state?.error && (
             <p className="text-sm text-destructive" role="alert">
-              {state.error}
+              {t.invalid}
             </p>
           )}
           <Button type="submit" disabled={pending} className="w-full">
-            {pending ? "Signing in…" : "Sign in"}
+            {pending ? t.signingIn : t.signIn}
           </Button>
         </form>
       </CardContent>
