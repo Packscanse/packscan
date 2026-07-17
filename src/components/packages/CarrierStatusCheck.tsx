@@ -2,10 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { format } from "date-fns";
-import {
-  lookupCarrierStatusAction,
-  type CarrierStatusResult,
-} from "@/actions/packages";
+import { lookupCarrierStatusAction } from "@/actions/packages";
+import type { CarrierStatusResult } from "@/lib/carrier-lookup";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useT } from "@/components/i18n/I18nProvider";

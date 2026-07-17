@@ -109,6 +109,16 @@ async function main() {
       typeof meStore?.pickupDeadlineDays === "number"
   );
 
+  // --- Scan context: server-side detection + pre-advice in one call ---
+  const context = await call("/scan-context?tracking=RR123456785SE", { token: pinToken });
+  const candidates =
+    (context.body.candidates as { carrier: string }[] | undefined) ?? [];
+  check(
+    "scan-context: detection candidates come from the server's rules",
+    context.status === 200 && candidates.some((c) => c.carrier === "POSTNORD"),
+    candidates.map((c) => c.carrier).join(", ") || "none"
+  );
+
   // --- Scan: register a new inbound parcel (PostNord ⇒ code+ID at pickup) ---
   const scanBody = {
     trackingNumber: `${TEST_PREFIX}PICK1`,

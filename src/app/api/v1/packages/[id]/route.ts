@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { apiError, apiJson, requireApiUser } from "@/lib/api-auth";
+import { getPickupPolicy } from "@/lib/carriers";
 
 /**
  * GET /api/v1/packages/:id — full detail for the app's package page:
@@ -59,5 +60,7 @@ export async function GET(
   if (!pkg || (auth.user.role !== "ADMIN" && pkg.storeId !== auth.user.storeId)) {
     return apiError(404, "NOT_FOUND", "Package not found.");
   }
-  return apiJson({ package: pkg });
+  // The carrier's pickup policy rides along so the app can gate its
+  // handover UI without duplicating policy tables (server still enforces).
+  return apiJson({ package: pkg, pickupPolicy: getPickupPolicy(pkg.carrier) });
 }
