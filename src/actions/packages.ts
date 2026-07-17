@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getRequiredSession } from "@/lib/session";
 import { advanceStatus, cancelPackage, markForReturn } from "@/lib/packages";
+import { CARRIER_PROVIDERS } from "@/lib/carriers";
 import { CancelReasonSchema, CourierRefSchema, HandoverInputSchema } from "@/lib/validation/scan";
 
 // Loads the package and enforces store scoping: clerks only touch their own
@@ -83,6 +84,50 @@ export async function completePickupAction(
   revalidatePath("/packages");
   revalidatePath(`/packages/${packageId}`);
   return { ok: true };
+}
+
+// Error codes, not sentences: the client renders them in the user's language.
+export type CarrierStatusResult =
+  | {
+      ok: true;
+      status: string;
+      estimatedDelivery: string | null;
+      events: { timestamp: string; description: string; location: string | null }[];
+    }
+  | { ok: false; code: "UNKNOWN_CARRIER" | "NOT_CONFIGURED" | "LOOKUP_FAILED" };
+
+/**
+ * "Where is this parcel?" — live tracking lookup at the carrier, for the
+ * clerk investigating a parcel a customer says has gone missing. Read-only:
+ * nothing about the package changes. Until carrier API credentials exist
+ * every provider throws its not-implemented error → NOT_CONFIGURED.
+ */
+export async function lookupCarrierStatusAction(
+  packageId: string
+): Promise<CarrierStatusResult> {
+  const { pkg } = await loadScopedPackage(packageId);
+  if (!pkg) return { ok: false, code: "LOOKUP_FAILED" };
+  const provider = CARRIER_PROVIDERS.find((p) => p.code === pkg.carrier);
+  if (!provider) return { ok: false, code: "UNKNOWN_CARRIER" };
+  try {
+    const details = await provider.lookupTrackingDetails(pkg.trackingNumber);
+    return {
+      ok: true,
+      status: details.status,
+      estimatedDelivery: details.estimatedDelivery?.toISOString() ?? null,
+      events: details.events.map((e) => ({
+        timestamp: e.timestamp.toISOString(),
+        description: e.description,
+        location: e.location ?? null,
+      })),
+    };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "";
+    return {
+      ok: false,
+      code: message.includes("not implemented") ? "NOT_CONFIGURED" : "LOOKUP_FAILED",
+    };
+  }
 }
 
 export async function cancelPackageAction(
