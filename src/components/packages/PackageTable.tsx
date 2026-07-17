@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/table";
 import { CARRIER_LABELS } from "@/lib/carriers";
 import { formatDuration } from "@/lib/duration";
+import { getT } from "@/lib/i18n/server";
 import { PackageStatusBadge } from "./PackageStatusBadge";
 
 /** How long a still-waiting parcel has been on the shelf; null once handled. */
@@ -19,11 +20,12 @@ function waitingFor(pkg: Package): string | null {
   return formatDuration(Date.now() - pkg.createdAt.getTime());
 }
 
-export function PackageTable({ packages }: { packages: Package[] }) {
+export async function PackageTable({ packages }: { packages: Package[] }) {
+  const t = await getT();
   if (packages.length === 0) {
     return (
       <p className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
-        No packages match. Scan one on the Scan page, or adjust the filters.
+        {t.packages.empty}
       </p>
     );
   }
@@ -56,9 +58,9 @@ export function PackageTable({ packages }: { packages: Package[] }) {
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              {pkg.direction === "INBOUND" ? "Inbound" : "Outbound"} · updated{" "}
-              {format(pkg.updatedAt, "MMM d, HH:mm")}
-              {waiting && ` · waiting ${waiting}`}
+              {pkg.direction === "INBOUND" ? t.packages.inbound : t.packages.outbound} ·{" "}
+              {t.packages.updated} {format(pkg.updatedAt, "MMM d, HH:mm")}
+              {waiting && ` · ${t.packages.waiting} ${waiting}`}
             </p>
           </Link>
           );
@@ -69,14 +71,14 @@ export function PackageTable({ packages }: { packages: Package[] }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Tracking number</TableHead>
-              <TableHead>Carrier</TableHead>
-              <TableHead>Direction</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Shelf</TableHead>
-              <TableHead>Waiting</TableHead>
-              <TableHead>Customer</TableHead>
-              <TableHead>Updated</TableHead>
+              <TableHead>{t.packages.colTracking}</TableHead>
+              <TableHead>{t.packages.colCarrier}</TableHead>
+              <TableHead>{t.packages.colDirection}</TableHead>
+              <TableHead>{t.packages.colStatus}</TableHead>
+              <TableHead>{t.packages.colShelf}</TableHead>
+              <TableHead>{t.packages.colWaiting}</TableHead>
+              <TableHead>{t.packages.colCustomer}</TableHead>
+              <TableHead>{t.packages.colUpdated}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -88,7 +90,9 @@ export function PackageTable({ packages }: { packages: Package[] }) {
                   </Link>
                 </TableCell>
                 <TableCell>{CARRIER_LABELS[pkg.carrier]}</TableCell>
-                <TableCell className="capitalize">{pkg.direction.toLowerCase()}</TableCell>
+                <TableCell>
+                  {pkg.direction === "INBOUND" ? t.packages.inbound : t.packages.outbound}
+                </TableCell>
                 <TableCell>
                   <PackageStatusBadge status={pkg.status} />
                 </TableCell>

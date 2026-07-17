@@ -456,7 +456,7 @@ export function ScanScreen({
         <Card>
           <CardHeader>
             <CardTitle className="text-base">
-              Confirm handover — <span className="font-mono">{handover.trackingNumber}</span>
+              {t.handover.confirmTitle} <span className="font-mono">{handover.trackingNumber}</span>
             </CardTitle>
           </CardHeader>
           <CardContent>

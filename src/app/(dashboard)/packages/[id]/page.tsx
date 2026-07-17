@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { getRequiredSession, hasManagementAccess } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { NEXT_STATUS, STATUS_LABELS, canCancel, canMarkForReturn } from "@/lib/status";
+import { NEXT_STATUS, canCancel, canMarkForReturn } from "@/lib/status";
 import {
   advancePackageAction,
   cancelPackageAction,
@@ -11,9 +11,10 @@ import {
 } from "@/actions/packages";
 import { PackageStatusBadge } from "@/components/packages/PackageStatusBadge";
 import { HandoverForm } from "@/components/packages/HandoverForm";
+import { CarrierStatusCheck } from "@/components/packages/CarrierStatusCheck";
 import { CARRIER_LABELS } from "@/lib/carriers";
 import { formatDuration } from "@/lib/duration";
-import { ID_TYPE_LABELS } from "@/lib/verification";
+import { getT } from "@/lib/i18n/server";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +27,7 @@ export default async function PackageDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const session = await getRequiredSession();
+  const t = await getT();
   const { id } = await params;
 
   const pkg = await prisma.package.findUnique({
@@ -65,56 +67,56 @@ export default async function PackageDetailPage({
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Details</CardTitle>
+          <CardTitle className="text-base">{t.detail.details}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-2 text-sm sm:grid-cols-2">
           <p>
-            <span className="text-muted-foreground">Carrier: </span>
+            <span className="text-muted-foreground">{t.detail.carrier}: </span>
             {CARRIER_LABELS[pkg.carrier]}
-            {pkg.carrierManual && " (manually set)"}
+            {pkg.carrierManual && ` ${t.detail.manuallySet}`}
           </p>
           <p>
-            <span className="text-muted-foreground">Direction: </span>
-            <span className="capitalize">{pkg.direction.toLowerCase()}</span>
+            <span className="text-muted-foreground">{t.detail.direction}: </span>
+            {pkg.direction === "INBOUND" ? t.packages.inbound : t.packages.outbound}
           </p>
           <p>
-            <span className="text-muted-foreground">Store: </span>
+            <span className="text-muted-foreground">{t.detail.store}: </span>
             {pkg.store.name} ({pkg.store.code})
           </p>
           <p>
-            <span className="text-muted-foreground">Registered: </span>
+            <span className="text-muted-foreground">{t.detail.registered}: </span>
             {format(pkg.createdAt, "MMM d yyyy, HH:mm")}
           </p>
           {dwellMs !== null && (
             <p>
-              <span className="text-muted-foreground">Time on shelf: </span>
+              <span className="text-muted-foreground">{t.detail.timeOnShelf}: </span>
               {formatDuration(dwellMs)}
-              {!handedOver && " (still waiting)"}
+              {!handedOver && ` ${t.detail.stillWaiting}`}
             </p>
           )}
           {pkg.customerName && (
             <p>
               <span className="text-muted-foreground">
-                {pkg.direction === "OUTBOUND" ? "Sender: " : "Customer: "}
+                {pkg.direction === "OUTBOUND" ? t.detail.sender : t.detail.customer}:{" "}
               </span>
               {pkg.customerName}
             </p>
           )}
           {(pkg.customerPhone || pkg.customerEmail) && (
             <p>
-              <span className="text-muted-foreground">Contact: </span>
+              <span className="text-muted-foreground">{t.detail.contact}: </span>
               {[pkg.customerPhone, pkg.customerEmail].filter(Boolean).join(" · ")}
             </p>
           )}
           {pkg.shelfLocation && (
             <p>
-              <span className="text-muted-foreground">Shelf: </span>
+              <span className="text-muted-foreground">{t.detail.shelf}: </span>
               <span className="font-semibold">{pkg.shelfLocation}</span>
             </p>
           )}
           {pkg.notes && (
             <p className="sm:col-span-2">
-              <span className="text-muted-foreground">Notes: </span>
+              <span className="text-muted-foreground">{t.detail.notes}: </span>
               {pkg.notes}
             </p>
           )}
@@ -147,12 +149,12 @@ export default async function PackageDetailPage({
               <Input
                 name="courierRef"
                 maxLength={80}
-                placeholder="Driver / route ref (optional)"
-                aria-label="Courier reference"
+                placeholder={t.detail.courierRefPlaceholder}
+                aria-label={t.detail.courierRef}
                 className="w-full sm:w-56"
               />
-              <SubmitButton pendingText="Updating…">
-                {next === "HANDED_OFF" ? "Mark handed off" : "Mark returned to carrier"}
+              <SubmitButton pendingText={t.detail.updating}>
+                {next === "HANDED_OFF" ? t.detail.markHandedOff : t.detail.markReturned}
               </SubmitButton>
             </form>
           )}
@@ -164,18 +166,18 @@ export default async function PackageDetailPage({
               <Input
                 name="reason"
                 maxLength={300}
-                placeholder="Return reason (optional)"
-                aria-label="Return reason"
+                placeholder={t.detail.returnReason}
+                aria-label={t.detail.returnReason}
                 className="w-full sm:w-56"
               />
-              <SubmitButton variant="secondary" pendingText="Updating…">
-                Mark for return
+              <SubmitButton variant="secondary" pendingText={t.detail.updating}>
+                {t.detail.markForReturn}
               </SubmitButton>
             </form>
           )}
           {pkg.direction === "OUTBOUND" && (
             <Button asChild variant="outline">
-              <Link href={`/packages/${pkg.id}/receipt`}>Drop-off receipt</Link>
+              <Link href={`/packages/${pkg.id}/receipt`}>{t.detail.dropOffReceipt}</Link>
             </Button>
           )}
           {canCancel(pkg.status) && (
@@ -188,21 +190,27 @@ export default async function PackageDetailPage({
                 required
                 minLength={3}
                 maxLength={300}
-                placeholder="Reason for cancelling (required)"
-                aria-label="Cancellation reason"
+                placeholder={t.detail.cancelReason}
+                aria-label={t.detail.cancelReason}
                 className="w-full sm:w-64"
               />
-              <SubmitButton variant="destructive" pendingText="Cancelling…">
-                Cancel package
+              <SubmitButton variant="destructive" pendingText={t.detail.cancelling}>
+                {t.detail.cancelPackage}
               </SubmitButton>
             </form>
           )}
         </div>
       )}
 
+      {/* Lost-parcel investigation: ask the carrier's tracking API directly.
+          UNKNOWN has no provider to ask, so the card is hidden. */}
+      {pkg.carrier !== "UNKNOWN" && (
+        <CarrierStatusCheck packageId={pkg.id} carrierLabel={CARRIER_LABELS[pkg.carrier]} />
+      )}
+
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Scan history</CardTitle>
+          <CardTitle className="text-base">{t.detail.scanHistory}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 text-sm">
           {pkg.scanEvents.map((event, i) => (
@@ -210,37 +218,43 @@ export default async function PackageDetailPage({
               {i > 0 && <Separator className="mb-3" />}
               <p>
                 {event.fromStatus
-                  ? `${STATUS_LABELS[event.fromStatus]} → ${STATUS_LABELS[event.toStatus]}`
-                  : `Registered as ${STATUS_LABELS[event.toStatus]}`}
+                  ? `${t.status[event.fromStatus]} → ${t.status[event.toStatus]}`
+                  : t.detail.registeredAs.replace("{status}", t.status[event.toStatus])}
               </p>
               <p className="text-muted-foreground">
                 {format(event.scannedAt, "MMM d yyyy, HH:mm:ss")} · {event.user.name} ·{" "}
-                {event.inputMethod.toLowerCase().replace("_", " ")}
+                {t.inputMethod[event.inputMethod]}
               </p>
               {event.verification && (
                 <p className="text-muted-foreground">
-                  Verified:{" "}
+                  {t.detail.verified}:{" "}
                   {[
                     event.verification.presentedCode &&
-                      `carrier-app code ${event.verification.codeValidated ? "validated by carrier" : "captured"} (${event.verification.presentedCode})`,
+                      `${event.verification.codeValidated ? t.detail.codeValidated : t.detail.codeCaptured} (${event.verification.presentedCode})`,
                     event.verification.idChecked &&
-                      `ID checked${event.verification.idType ? ` (${ID_TYPE_LABELS[event.verification.idType]})` : ""}`,
+                      `${t.detail.idChecked}${event.verification.idType ? ` (${t.idType[event.verification.idType]})` : ""}`,
                   ]
                     .filter(Boolean)
-                    .join(" · ") || "nothing"}
+                    .join(" · ") || t.detail.nothing}
                   {event.verification.collectorName &&
-                    ` · collected by ${event.verification.collectorName}`}
+                    ` · ${t.detail.collectedBy} ${event.verification.collectorName}`}
                 </p>
               )}
               {event.verification?.override && (
                 <p className="font-medium text-amber-700 dark:text-amber-500">
-                  MANAGER OVERRIDE — {event.verification.overrideReason}
+                  {t.detail.override} — {event.verification.overrideReason}
                 </p>
               )}
               {event.courierRef && (
-                <p className="text-muted-foreground">Courier ref: {event.courierRef}</p>
+                <p className="text-muted-foreground">
+                  {t.detail.courierRef}: {event.courierRef}
+                </p>
               )}
-              {event.note && <p className="text-muted-foreground">Note: {event.note}</p>}
+              {event.note && (
+                <p className="text-muted-foreground">
+                  {t.detail.note}: {event.note}
+                </p>
+              )}
             </div>
           ))}
         </CardContent>
@@ -249,14 +263,14 @@ export default async function PackageDetailPage({
       {pkg.notifications.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Notifications</CardTitle>
+            <CardTitle className="text-base">{t.detail.notifications}</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 text-sm">
             {pkg.notifications.map((n, i) => (
               <div key={n.id}>
                 {i > 0 && <Separator className="mb-3" />}
                 <p>
-                  {n.channel} to {n.recipient}{" "}
+                  {n.channel} → {n.recipient}{" "}
                   <span className="text-muted-foreground">({n.status.toLowerCase().replace("_", " ")})</span>
                 </p>
                 <p className="text-muted-foreground">&ldquo;{n.message}&rdquo;</p>
