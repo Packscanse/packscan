@@ -3,6 +3,8 @@ import { format } from "date-fns";
 import { getRequiredManagerSession, managedStoreId } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { STATUS_LABELS } from "@/lib/status";
+import { resolveAlertAction } from "@/actions/operations";
+import { SubmitButton } from "@/components/ui/submit-button";
 import {
   Table,
   TableBody,
@@ -17,7 +19,13 @@ export default async function AdminOverviewPage() {
   const session = await getRequiredManagerSession();
   // Managers see their own store; chain admins see everything.
   const scope = managedStoreId(session);
-  const [stores, statusCounts, recentEvents, recentOverrides] = await Promise.all([
+  const [openAlerts, stores, statusCounts, recentEvents, recentOverrides] = await Promise.all([
+    prisma.adminAlert.findMany({
+      where: { resolvedAt: null, ...(scope && { storeId: scope }) },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      include: { store: { select: { code: true } } },
+    }),
     prisma.store.findMany({
       where: scope ? { id: scope } : undefined,
       orderBy: { name: "asc" },
@@ -60,6 +68,44 @@ export default async function AdminOverviewPage() {
   return (
     <div className="grid gap-4">
       <h1 className="text-xl font-semibold">Admin overview</h1>
+
+      {/* Dead-lettered carrier events and anything else that stopped working
+          silently. Stays until someone resolves it, so nothing is missed. */}
+      {openAlerts.length > 0 && (
+        <Card className="border-destructive/50">
+          <CardHeader>
+            <CardTitle className="text-base text-destructive">
+              Alerts ({openAlerts.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 text-sm">
+            {openAlerts.map((alert) => (
+              <div key={alert.id} className="flex flex-wrap items-center justify-between gap-2">
+                <p className="min-w-0 flex-1">
+                  <span className="text-muted-foreground">
+                    {format(alert.createdAt, "MMM d, HH:mm")} · {alert.store.code} ·{" "}
+                  </span>
+                  {alert.packageId ? (
+                    <Link
+                      href={`/packages/${alert.packageId}`}
+                      className="underline-offset-2 hover:underline"
+                    >
+                      {alert.message}
+                    </Link>
+                  ) : (
+                    alert.message
+                  )}
+                </p>
+                <form action={resolveAlertAction.bind(null, alert.id)}>
+                  <SubmitButton variant="outline" size="sm" pendingText="Resolving…">
+                    Resolve
+                  </SubmitButton>
+                </form>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

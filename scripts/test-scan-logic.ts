@@ -4,7 +4,7 @@
  */
 import { prisma } from "../src/lib/prisma";
 import { advanceStatus, cancelPackage, markForReturn, registerScan } from "../src/lib/packages";
-import { requeueEvents } from "../src/lib/carrier-events";
+import { dispatchEventsForPackage, requeueEvents } from "../src/lib/carrier-events";
 import { ingestCarrierEvents } from "../src/lib/carrier-ingest";
 import { postnordProvider } from "../src/lib/carriers/rules/postnord";
 
@@ -22,6 +22,11 @@ async function deleteTestData(storeId: string) {
   const where = { storeId, package: { trackingNumber: { startsWith: TEST_PREFIX } } };
   await prisma.preAdvice.deleteMany({
     where: { storeId, trackingNumber: { startsWith: TEST_PREFIX } },
+  });
+  // Alerts survive package deletion (packageId → null); match on the
+  // tracking number embedded in the message.
+  await prisma.adminAlert.deleteMany({
+    where: { storeId, message: { contains: TEST_PREFIX } },
   });
   await prisma.scanEvent.deleteMany({ where });
   await prisma.package.deleteMany({
@@ -402,6 +407,53 @@ async function main() {
     });
   }
 
+  // --- Dead-letter: exhausting MAX_ATTEMPTS raises an AdminAlert ---
+  // A NOT_CONFIGURED result is a clean outcome, so make delivery THROW by
+  // patching the provider; with attempts already at 19 the next failure is
+  // the 20th — the event dead-letters and "attempt 21" becomes an alert.
+  const dl = await registerScan({ ...base, trackingNumber: `${TEST_PREFIX}DEADL1`, flow: "INBOUND_PICKUP" });
+  if (dl.ok) {
+    const dlEvent = await prisma.carrierEventOutbox.findFirstOrThrow({
+      where: { packageId: dl.package.id, eventType: "ARRIVAL" },
+    });
+    await prisma.carrierEventOutbox.update({
+      where: { id: dlEvent.id },
+      data: { status: "PENDING", attempts: 19, nextAttemptAt: new Date() },
+    });
+    const originalReportArrival = postnordProvider.reportArrival;
+    postnordProvider.reportArrival = async () => {
+      throw new Error("simulated carrier outage");
+    };
+    try {
+      await dispatchEventsForPackage(dl.package.id);
+    } finally {
+      postnordProvider.reportArrival = originalReportArrival;
+    }
+    const deadRow = await prisma.carrierEventOutbox.findUniqueOrThrow({
+      where: { id: dlEvent.id },
+    });
+    check(
+      "dead-letter: 20th failed attempt marks the event FAILED",
+      deadRow.status === "FAILED" && deadRow.attempts === 20,
+      `${deadRow.status} after ${deadRow.attempts} attempts`
+    );
+    const alert = await prisma.adminAlert.findFirst({
+      where: { storeId: store.id, packageId: dl.package.id, type: "CARRIER_EVENT_FAILED" },
+    });
+    check(
+      "dead-letter: AdminAlert raised for the store, unresolved, names the parcel",
+      alert !== null &&
+        alert.resolvedAt === null &&
+        alert.message.includes(`${TEST_PREFIX}DEADL1`) &&
+        alert.message.includes("simulated carrier outage"),
+      alert?.message ?? "no alert row"
+    );
+    const alertCount = await prisma.adminAlert.count({
+      where: { storeId: store.id, packageId: dl.package.id },
+    });
+    check("dead-letter: exactly one alert per exhaustion", alertCount === 1, String(alertCount));
+  }
+
   // --- Concurrent duplicate scan: the create race resolves gracefully ---
   const [race1, race2] = await Promise.all([
     registerScan({ ...base, trackingNumber: `${TEST_PREFIX}RACE1`, flow: "INBOUND_LOG" }),
@@ -419,7 +471,7 @@ async function main() {
   const events = await prisma.scanEvent.count({
     where: { storeId: store.id, package: { trackingNumber: { startsWith: TEST_PREFIX } } },
   });
-  check("audit: expected 20 scan events recorded", events === 20, `got ${events}`);
+  check("audit: expected 21 scan events recorded", events === 21, `got ${events}`);
 
   // Audit rows survive package deletion attempts (Restrict, not Cascade)
   if (log1.ok) {
