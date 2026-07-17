@@ -1,10 +1,8 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { applyIdleTimeout, authConfig, DEFAULT_IDLE_MINUTES } from "@/lib/auth-config";
-import { LoginSchema } from "@/lib/validation/auth";
-import { clearFailures, isRateLimited, recordFailure } from "@/lib/rate-limit";
+import { clientIp, verifyCredentials } from "@/lib/credentials";
 
 // How stale a JWT's user snapshot may get before we re-check the DB.
 // Bounds how long a deactivated account (or outdated role/idle-timeout
@@ -16,45 +14,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     Credentials({
       credentials: { email: {}, password: {}, pin: {} },
+      // All real logic (rate limiting, active flag, password-vs-PIN) lives
+      // in verifyCredentials, shared with POST /api/v1/auth/login.
       async authorize(raw, request) {
-        const parsed = LoginSchema.safeParse(raw);
-        if (!parsed.success) return null;
-        const email = parsed.data.email.toLowerCase();
-        // Behind a proxy the left-most XFF entry is the client; locally
-        // there is none and every request shares the "local" bucket.
-        const ip =
-          request.headers?.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
-
-        if ((await isRateLimited("email", email)) || (await isRateLimited("ip", ip))) return null;
-
-        const user = await prisma.user.findUnique({
-          where: { email },
-          include: { store: { select: { sessionIdleMinutes: true } } },
-        });
-        if (!user || !user.active) {
-          await Promise.all([recordFailure("email", email), recordFailure("ip", ip)]);
-          return null;
-        }
-        // Counter PIN signs in for scanning; administration always needs
-        // the password (enforced via authMethod on the session).
-        const valid = parsed.data.pin
-          ? user.pinHash !== null && (await bcrypt.compare(parsed.data.pin, user.pinHash))
-          : await bcrypt.compare(parsed.data.password!, user.passwordHash);
-        if (!valid) {
-          await Promise.all([recordFailure("email", email), recordFailure("ip", ip)]);
-          return null;
-        }
-        await clearFailures("email", email);
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          storeId: user.storeId,
-          idleMinutes: user.store?.sessionIdleMinutes ?? DEFAULT_IDLE_MINUTES,
-          authMethod: parsed.data.pin ? ("PIN" as const) : ("PASSWORD" as const),
-          locale: user.locale,
-        };
+        return verifyCredentials(raw, clientIp(request.headers));
       },
     }),
   ],
