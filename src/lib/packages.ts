@@ -46,6 +46,13 @@ export type ScanOutcome =
       error: string;
     };
 
+/** A concurrent scan advanced the package between our status read and write. */
+const RACED: ScanOutcome = {
+  ok: false,
+  code: "INVALID_ACTION",
+  error: "This package was just updated by another scan — refresh to see its current status.",
+};
+
 export interface RegisterScanArgs {
   storeId: string;
   userId: string;
@@ -318,6 +325,7 @@ export async function advanceStatus(args: {
     },
     next
   );
+  if (!updated) return RACED;
   if (next === "PICKED_UP") {
     const carrierNotifies = await dispatchAndCheck(updated.id, "PICKED_UP");
     if (!carrierNotifies) await notifyCustomer(updated, "PICKED_UP");
@@ -350,6 +358,7 @@ export async function markForReturn(args: {
     { ...args, inputMethod: "STATUS_ACTION", note: args.reason?.trim() || undefined },
     "RETURN_PENDING"
   );
+  if (!updated) return RACED;
   return { ok: true, kind: "transitioned", package: updated, fromStatus: pkg.status };
 }
 
@@ -380,6 +389,7 @@ export async function cancelPackage(args: {
     { ...args, inputMethod: "STATUS_ACTION", note: reason },
     "CANCELLED"
   );
+  if (!updated) return RACED;
   return { ok: true, kind: "transitioned", package: updated, fromStatus: pkg.status };
 }
 
@@ -396,12 +406,18 @@ async function transition(
     enqueue?: EnqueueArgs;
   },
   toStatus: PackageStatus
-): Promise<Package> {
+): Promise<Package | null> {
   return prisma.$transaction(async (tx) => {
-    const updated = await tx.package.update({
-      where: { id: args.pkg.id },
+    // Compare-and-swap on the source status: pkg.status was read before this
+    // transaction, so a concurrent scan may have advanced the package. Guard
+    // the update on that status — a 0-row match means we lost the race, and we
+    // bail before writing a duplicate scan event, carrier event, or customer
+    // notification.
+    const swap = await tx.package.updateMany({
+      where: { id: args.pkg.id, status: args.pkg.status },
       data: { status: toStatus },
     });
+    if (swap.count !== 1) return null;
     await tx.scanEvent.create({
       data: {
         packageId: args.pkg.id,
@@ -416,7 +432,7 @@ async function transition(
       },
     });
     if (args.enqueue) await enqueueCarrierEvent(tx, args.enqueue);
-    return updated;
+    return tx.package.findUniqueOrThrow({ where: { id: args.pkg.id } });
   });
 }
 
