@@ -8,12 +8,16 @@ Base path: `/api/v1` · All bodies and responses are JSON.
 
 ## Authentication
 
-`POST /api/v1/auth/login` with either credential form:
+`POST /api/v1/auth/login` — digits only:
 
 ```json
-{ "email": "clerk@store.example", "password": "…" }
-{ "email": "clerk@store.example", "pin": "123456" }
+{ "userNumber": "1001", "pin": "123456" }
 ```
+
+`userNumber` is the account's 4-digit sign-in number (assigned automatically,
+shown in the web admin's user list). Password credentials are refused with
+`403 PASSWORD_LOGIN_WEB_ONLY`: password sign-in — and with it every admin
+capability, since PIN tokens act as CLERK — exists only in the web backend.
 
 Response:
 
@@ -31,12 +35,12 @@ Send the token on every other call: `Authorization: Bearer <token>`.
 
 Notes:
 
-- The login shares `verifyCredentials` with the web form: same rate limits
-  (10/email, 30/IP per 15 min), same active-account check, one generic
-  `INVALID_CREDENTIALS` — the API never reveals which part failed.
-- **PIN tokens scan; passwords manage.** A PIN-issued token acts as CLERK on
-  every mutation regardless of the account's role, exactly like the web.
-  Manager overrides therefore always require a password login.
+- Same rate limits as the web login (10 per identifier, 30/IP per 15 min),
+  same active-account check, one generic `INVALID_CREDENTIALS` — the API
+  never reveals which part failed.
+- **PIN tokens scan; passwords manage.** An app token always acts as CLERK
+  on every mutation regardless of the account's role. Manager overrides and
+  administration require a password sign-in on the web.
 - Tokens live 12 h (`API_TOKEN_TTL_HOURS` to change, `API_JWT_SECRET` to use
   a dedicated signing secret; falls back to `AUTH_SECRET`). Role, store, and
   the active flag are read fresh from the DB on **every** request, so

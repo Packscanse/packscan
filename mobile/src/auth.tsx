@@ -10,7 +10,8 @@ type AuthState = {
   ready: boolean;
   user: ApiUser | null;
   store: ApiStore | null;
-  signIn(input: { email: string; password?: string; pin?: string }): Promise<string | null>;
+  /** Digits only: 4-digit user number + 6-digit PIN. Null = success, else error code. */
+  signIn(input: { userNumber: string; pin: string }): Promise<string | null>;
   signOut(): Promise<void>;
 };
 
@@ -60,7 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signIn = useCallback(
-    async (input: { email: string; password?: string; pin?: string }) => {
+    async (input: { userNumber: string; pin: string }) => {
       const res = await api<LoginResponse | ApiErrorBody>("/auth/login", {
         body: input,
         token: null,

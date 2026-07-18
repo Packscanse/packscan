@@ -58,6 +58,48 @@ export async function verifyCredentials(raw: unknown, ip: string): Promise<Verif
   };
 }
 
+/**
+ * The device app's sign-in: 4-digit user number + 6-digit PIN, nothing
+ * else. Passwords are deliberately not accepted here — administration
+ * happens in the web backend only. Same rate limiting and generic-failure
+ * posture as verifyCredentials.
+ */
+export async function verifyAppPin(
+  userNumber: string,
+  pin: string,
+  ip: string
+): Promise<VerifiedUser | null> {
+  if (!/^\d{4}$/.test(userNumber) || !/^\d{6}$/.test(pin)) return null;
+
+  if ((await isRateLimited("email", `nr:${userNumber}`)) || (await isRateLimited("ip", ip)))
+    return null;
+
+  const user = await prisma.user.findUnique({
+    where: { loginNumber: userNumber },
+    include: { store: { select: { sessionIdleMinutes: true } } },
+  });
+  const valid =
+    user !== null &&
+    user.active &&
+    user.pinHash !== null &&
+    (await bcrypt.compare(pin, user.pinHash));
+  if (!user || !valid) {
+    await Promise.all([recordFailure("email", `nr:${userNumber}`), recordFailure("ip", ip)]);
+    return null;
+  }
+  await clearFailures("email", `nr:${userNumber}`);
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    storeId: user.storeId,
+    idleMinutes: user.store?.sessionIdleMinutes ?? DEFAULT_IDLE_MINUTES,
+    authMethod: "PIN",
+    locale: user.locale,
+  };
+}
+
 /** Left-most X-Forwarded-For entry behind a proxy; "local" in dev. */
 export function clientIp(headers: Headers | null | undefined): string {
   return headers?.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";

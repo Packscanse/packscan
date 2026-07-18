@@ -1,17 +1,21 @@
 import React, { useEffect, useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, Text } from "react-native";
 import { useAuth } from "../auth";
 import { DEFAULT_SERVER_URL, getServerUrl, setServerUrl } from "../config";
 import { NetworkError } from "../api/client";
 import type { AppMessages } from "../i18n";
-import { Button, Chip, Field, colors } from "../ui";
+import { Button, Field, colors } from "../ui";
 
+/**
+ * Digits-only sign-in: 4-digit user number + 6-digit PIN. There is no
+ * password path in the app at all — administration lives in the web
+ * backend, and the server refuses password logins on this endpoint too.
+ */
 export function LoginScreen({ t }: { t: AppMessages }) {
   const { signIn } = useAuth();
   const [server, setServer] = useState(DEFAULT_SERVER_URL);
-  const [email, setEmail] = useState("");
-  const [secret, setSecret] = useState("");
-  const [mode, setMode] = useState<"pin" | "password">("pin");
+  const [userNumber, setUserNumber] = useState("");
+  const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -24,17 +28,17 @@ export function LoginScreen({ t }: { t: AppMessages }) {
     setError(null);
     try {
       await setServerUrl(server);
-      const code = await signIn({
-        email: email.trim(),
-        ...(mode === "pin" ? { pin: secret.trim() } : { password: secret }),
-      });
-      if (code) setError(t.login.invalid);
+      const code = await signIn({ userNumber: userNumber.trim(), pin: pin.trim() });
+      if (code === "PASSWORD_LOGIN_WEB_ONLY") setError(t.login.webOnly);
+      else if (code) setError(t.login.invalid);
     } catch (e) {
       setError(e instanceof NetworkError ? t.login.offline : t.common.error);
     } finally {
       setBusy(false);
     }
   }
+
+  const digits = (value: string) => value.replace(/[^0-9]/g, "");
 
   return (
     <KeyboardAvoidingView
@@ -45,32 +49,37 @@ export function LoginScreen({ t }: { t: AppMessages }) {
         <Text style={{ fontSize: 30, fontWeight: "800", color: colors.text }}>{t.appName}</Text>
         <Text style={{ color: colors.muted }}>{t.login.title}</Text>
 
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          <Chip title={t.login.usePin} active={mode === "pin"} onPress={() => setMode("pin")} />
-          <Chip
-            title={t.login.usePassword}
-            active={mode === "password"}
-            onPress={() => setMode("password")}
-          />
-        </View>
-
         <Field
-          label={t.login.email}
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoComplete="email"
-          placeholder="you@store.example"
+          label={t.login.userNumber}
+          value={userNumber}
+          onChangeText={(v) => setUserNumber(digits(v))}
+          keyboardType="number-pad"
+          maxLength={4}
+          placeholder="1234"
+          style={{ fontSize: 24, letterSpacing: 6 }}
         />
         <Field
-          label={mode === "pin" ? t.login.pin : t.login.password}
-          value={secret}
-          onChangeText={setSecret}
+          label={t.login.pin}
+          value={pin}
+          onChangeText={(v) => setPin(digits(v))}
           secureTextEntry
-          keyboardType={mode === "pin" ? "number-pad" : "default"}
-          maxLength={mode === "pin" ? 6 : undefined}
+          keyboardType="number-pad"
+          maxLength={6}
           placeholder="••••••"
+          style={{ fontSize: 24, letterSpacing: 6 }}
         />
+
+        {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
+
+        <Button
+          title={busy ? t.login.signingIn : t.login.signIn}
+          onPress={() => void submit()}
+          loading={busy}
+          disabled={userNumber.length !== 4 || pin.length !== 6}
+        />
+
+        <Text style={{ color: colors.muted, fontSize: 12 }}>{t.login.adminHint}</Text>
+
         <Field
           label={t.login.serverUrl}
           value={server}
@@ -79,15 +88,6 @@ export function LoginScreen({ t }: { t: AppMessages }) {
           placeholder={DEFAULT_SERVER_URL}
         />
         <Text style={{ color: colors.muted, fontSize: 12 }}>{t.login.serverHint}</Text>
-
-        {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
-
-        <Button
-          title={busy ? t.login.signingIn : t.login.signIn}
-          onPress={() => void submit()}
-          loading={busy}
-          disabled={!email.trim() || !secret}
-        />
       </ScrollView>
     </KeyboardAvoidingView>
   );

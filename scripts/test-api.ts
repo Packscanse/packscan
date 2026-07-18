@@ -55,42 +55,38 @@ async function main() {
   const store = await prisma.store.findUniqueOrThrow({ where: { code: "DEMO-01" } });
   await deleteTestData(store.id);
 
-  // --- Login ---
-  const badLogin = await call("/auth/login", {
+  // --- Login: digits only; passwords belong to the web backend ---
+  const passwordAttempt = await call("/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email: "nobody@packscan.local", password: "wrong" }),
+    body: JSON.stringify({ email: "admin@packscan.local", password: "admin-dev-password" }),
   });
   check(
-    "login: unknown user → 401 with one generic code",
+    "login: password sign-in refused with 403 PASSWORD_LOGIN_WEB_ONLY",
+    passwordAttempt.status === 403 &&
+      (passwordAttempt.body.error as { code?: string })?.code === "PASSWORD_LOGIN_WEB_ONLY"
+  );
+
+  const badLogin = await call("/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ userNumber: "0000", pin: "999999" }),
+  });
+  check(
+    "login: unknown number → 401 with one generic code",
     badLogin.status === 401 &&
       (badLogin.body.error as { code?: string })?.code === "INVALID_CREDENTIALS"
   );
 
-  const adminLogin = await call("/auth/login", {
-    method: "POST",
-    body: JSON.stringify({ email: "admin@packscan.local", password: "admin-dev-password" }),
-  });
-  const adminToken = adminLogin.body.token as string | undefined;
-  const adminUser = adminLogin.body.user as { role?: string; authMethod?: string } | undefined;
-  check(
-    "login: admin password → token + PASSWORD authMethod + store branding",
-    adminLogin.status === 200 &&
-      !!adminToken &&
-      adminUser?.role === "ADMIN" &&
-      adminUser?.authMethod === "PASSWORD" &&
-      !!(adminLogin.body.store as { code?: string })?.code
-  );
-
   const pinLogin = await call("/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email: "clerk@packscan.local", pin: "123456" }),
+    body: JSON.stringify({ userNumber: "1001", pin: "123456" }),
   });
   const pinToken = pinLogin.body.token as string | undefined;
   check(
-    "login: clerk PIN → token with PIN authMethod",
+    "login: user number 1001 + PIN → token with PIN authMethod + store branding",
     pinLogin.status === 200 &&
       !!pinToken &&
-      (pinLogin.body.user as { authMethod?: string })?.authMethod === "PIN"
+      (pinLogin.body.user as { authMethod?: string })?.authMethod === "PIN" &&
+      !!(pinLogin.body.store as { code?: string })?.code
   );
 
   // --- Token gate ---
@@ -222,9 +218,15 @@ async function main() {
   );
 
   // --- Scoping: the other store's clerk must not see this parcel ---
+  // Give the second-store clerk a PIN so it can use the digits-only login.
+  const bcrypt = (await import("bcryptjs")).default;
+  await prisma.user.update({
+    where: { email: "clerk2@packscan.local" },
+    data: { pinHash: await bcrypt.hash("654321", 10) },
+  });
   const otherLogin = await call("/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email: "clerk2@packscan.local", password: "clerk2-dev-password" }),
+    body: JSON.stringify({ userNumber: "1002", pin: "654321" }),
   });
   if (otherLogin.status === 200) {
     const cross = await call(`/packages/${packageId}`, {
