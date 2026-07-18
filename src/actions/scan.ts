@@ -10,7 +10,9 @@ import {
 } from "@/lib/scan-flow";
 import { ScanInputSchema } from "@/lib/validation/scan";
 
-export type { PreAdviceMatch, ProcessScanResult } from "@/lib/scan-flow";
+// NOTE: "use server" files may only export async functions (even type
+// re-exports are rejected by the bundler) — import ProcessScanResult and
+// PreAdviceMatch from "@/lib/scan-flow" instead.
 
 /** Web scan entry: session → executeScan (shared with POST /api/v1/scans). */
 export async function processScan(input: unknown): Promise<ProcessScanResult> {

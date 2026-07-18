@@ -104,6 +104,24 @@ export async function setUserStore(args: {
  * Set (or clear) the 6-digit counter PIN. A PIN-established session can
  * only scan — administration always demands the password.
  */
+/**
+ * Unused 4-digit sign-in number for the device app (1000–9999, random so
+ * numbers aren't guessable from hiring order). Globally unique — the app
+ * login has no store context. ~9000 numbers caps the staff directory;
+ * revisit (5 digits) if the chain ever approaches that.
+ */
+export async function generateLoginNumber(): Promise<string> {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const candidate = String(1000 + Math.floor(Math.random() * 9000));
+    const taken = await prisma.user.findUnique({
+      where: { loginNumber: candidate },
+      select: { id: true },
+    });
+    if (!taken) return candidate;
+  }
+  throw new Error("No free login numbers — the 4-digit space is exhausted.");
+}
+
 export async function setUserPin(args: {
   targetId: string;
   pin: string | null;
@@ -116,7 +134,14 @@ export async function setUserPin(args: {
 
   await prisma.user.update({
     where: { id: target.id },
-    data: { pinHash: args.pin === null ? null : await bcrypt.hash(args.pin, BCRYPT_ROUNDS) },
+    data: {
+      pinHash: args.pin === null ? null : await bcrypt.hash(args.pin, BCRYPT_ROUNDS),
+      // A PIN is what the device app signs in with — make sure the account
+      // has its 4-digit number the moment a PIN exists.
+      ...(args.pin !== null && target.loginNumber === null
+        ? { loginNumber: await generateLoginNumber() }
+        : {}),
+    },
   });
   return { ok: true };
 }

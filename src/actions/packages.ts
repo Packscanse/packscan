@@ -86,12 +86,11 @@ export async function completePickupAction(
   return { ok: true };
 }
 
-export type { CarrierStatusResult } from "@/lib/carrier-lookup";
-
 /**
  * "Where is this parcel?" — for the clerk investigating a parcel a customer
  * says has gone missing. Scoping here, lookup in the shared lib (also used
- * by GET /api/v1/packages/:id/carrier-status).
+ * by GET /api/v1/packages/:id/carrier-status). CarrierStatusResult lives in
+ * "@/lib/carrier-lookup" ("use server" files may only export async functions).
  */
 export async function lookupCarrierStatusAction(
   packageId: string

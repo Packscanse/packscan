@@ -145,6 +145,9 @@ model User {
   // Optional 6-digit counter PIN (bcrypt). PIN sessions can scan but never
   // reach administration — that always requires the password.
   pinHash      String?
+  // 4-digit sign-in number for the device app (all-digits login: number +
+  // PIN). Globally unique; assigned automatically, shown in user admin.
+  loginNumber  String?  @unique
   name         String
   role         Role     @default(CLERK)
   locale       Locale   @default(EN)

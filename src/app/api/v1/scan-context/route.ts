@@ -1,0 +1,24 @@
+import { apiError, apiJson, requireApiUser } from "@/lib/api-auth";
+import { detectCarrierCandidates, normalizeTrackingNumber } from "@/lib/carriers";
+import { findPreAdviceMatch } from "@/lib/scan-flow";
+
+/**
+ * GET /api/v1/scan-context?tracking=… — everything the app needs the moment
+ * a label is scanned, in one round-trip: the server's carrier detection
+ * (the rules live here, never duplicated into clients) and any pre-advice
+ * match for pre-filling the intake form. Pre-advice wins over detection for
+ * carrier attribution, same as the web Scan screen.
+ */
+export async function GET(request: Request): Promise<Response> {
+  const auth = await requireApiUser(request);
+  if (auth.error) return auth.error;
+
+  const tracking = new URL(request.url).searchParams.get("tracking")?.trim() ?? "";
+  if (!tracking) return apiError(422, "INVALID_INPUT", "Query parameter `tracking` is required.");
+
+  return apiJson({
+    trackingNumber: normalizeTrackingNumber(tracking),
+    candidates: detectCarrierCandidates(tracking),
+    preAdvice: await findPreAdviceMatch(auth.user.storeId, tracking),
+  });
+}
