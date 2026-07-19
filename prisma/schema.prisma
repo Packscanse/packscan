@@ -190,10 +190,18 @@ model Package {
   adminAlerts   AdminAlert[]
 
   @@unique([storeId, trackingNumber, direction])
-  @@index([storeId, status])
+  // Store package list: filter by store (+ optional status), newest first,
+  // paginated. The composite also serves plain (storeId) and (storeId,status)
+  // equality via its leftmost prefix, so it supersedes the old [storeId,status].
+  @@index([storeId, status, updatedAt(sort: Desc)])
+  @@index([storeId, updatedAt(sort: Desc)])
   @@index([trackingNumber])
   // Chain-wide shelf aging aggregates filter on status alone.
   @@index([status])
+  // Date-range report aggregates (received today / last 30 days), chain-wide
+  // and per store — without these each dashboard load seq-scans all history.
+  @@index([createdAt])
+  @@index([storeId, createdAt])
 }
 
 // Append-only audit log; Package.status is the current-state cache.
