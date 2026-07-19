@@ -41,6 +41,7 @@ export default async function AdminUsersPage() {
               <TableRow>
                 <TableHead>Email</TableHead>
                 <TableHead>Name</TableHead>
+                <TableHead>App sign-in #</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Store</TableHead>
                 <TableHead>Active</TableHead>
@@ -56,6 +57,9 @@ export default async function AdminUsersPage() {
                     {user.id === session.user.id && (
                       <span className="text-muted-foreground"> (you)</span>
                     )}
+                  </TableCell>
+                  <TableCell className="align-top font-mono">
+                    {user.loginNumber ?? "—"}
                   </TableCell>
                   <TableCell className="align-top">
                     <Badge variant={user.role === "ADMIN" ? "default" : "outline"}>

@@ -11,12 +11,8 @@ import {
 import { FLOW_DIRECTION, type ScanFlow } from "@/lib/status";
 import type { HandoverInput } from "@/lib/verification";
 import type { HandoverContext } from "@/lib/packages";
-import {
-  lookupPreAdvice,
-  processScan,
-  type PreAdviceMatch,
-  type ProcessScanResult,
-} from "@/actions/scan";
+import { lookupPreAdvice, processScan } from "@/actions/scan";
+import type { PreAdviceMatch, ProcessScanResult } from "@/lib/scan-flow";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

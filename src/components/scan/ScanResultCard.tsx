@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { ProcessScanResult } from "@/actions/scan";
+import type { ProcessScanResult } from "@/lib/scan-flow";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useT } from "@/components/i18n/I18nProvider";

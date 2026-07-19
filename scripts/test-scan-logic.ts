@@ -488,6 +488,36 @@ async function main() {
   });
   check("no notifications without contact info", noContactNotifs === 0, `got ${noContactNotifs}`);
 
+  // --- Concurrent duplicate pickup: the compare-and-swap on the source status
+  //     stops a double-tap / two-clerk race from writing two PICKED_UP events
+  //     (and, with them, two customer notifications). ---
+  const traceScan = await registerScan({
+    ...base,
+    trackingNumber: `${TEST_PREFIX}TRACE1`,
+    flow: "INBOUND_PICKUP",
+    customerName: "Race Customer",
+    customerPhone: "+46700000099",
+  });
+  if (traceScan.ok && traceScan.kind === "created") {
+    const verification = { presentedCode: "PN-APP-QR-PAYLOAD-9", idChecked: true, idType: "PASSPORT" as const };
+    // Both callers hold the same AWAITING_PICKUP snapshot and fire at once.
+    const [h1, h2] = await Promise.all([
+      advanceStatus({ ...ctx, pkg: traceScan.package, inputMethod: "MANUAL_ENTRY", verification }),
+      advanceStatus({ ...ctx, pkg: traceScan.package, inputMethod: "MANUAL_ENTRY", verification }),
+    ]);
+    const completed = [h1, h2].filter((r) => r.ok && r.kind === "transitioned").length;
+    const rejected = [h1, h2].filter((r) => !r.ok && r.code === "INVALID_ACTION").length;
+    check(
+      "race: two simultaneous pickups — exactly one completes, one is rejected",
+      completed === 1 && rejected === 1,
+      [h1, h2].map((r) => (r.ok ? r.kind : r.code)).join(" / ")
+    );
+    const picked = await prisma.scanEvent.count({
+      where: { packageId: traceScan.package.id, toStatus: "PICKED_UP" },
+    });
+    check("race: only one PICKED_UP event written", picked === 1, `got ${picked}`);
+  }
+
   // Cleanup
   await deleteTestData(store.id);
 
