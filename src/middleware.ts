@@ -40,7 +40,9 @@ export default auth(function middleware(req) {
 
 export const config = {
   matcher: [
-    // api/carriers authenticates with its own webhook secret, not a session.
-    "/((?!api/auth|api/carriers|_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|webp|ico)$).*)",
+    // api/carriers authenticates with its webhook secret and api/v1 with
+    // bearer tokens — neither uses the session cookie, and an API caller
+    // must get a 401 JSON from the route, not a redirect to /login.
+    "/((?!api/auth|api/carriers|api/v1|_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|webp|ico)$).*)",
   ],
 };

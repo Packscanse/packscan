@@ -80,15 +80,45 @@ async function attempt(event: CarrierEventOutbox): Promise<CarrierEventOutbox> {
     const attempts = event.attempts + 1;
     const dead = attempts >= MAX_ATTEMPTS;
     const backoff = Math.min(BASE_BACKOFF_MS * 2 ** event.attempts, MAX_BACKOFF_MS);
-    return prisma.carrierEventOutbox.update({
+    const lastError = e instanceof Error ? e.message.slice(0, 500) : String(e).slice(0, 500);
+    const updated = await prisma.carrierEventOutbox.update({
       where: { id: event.id },
       data: {
         status: dead ? "FAILED" : "PENDING",
         attempts,
-        lastError: e instanceof Error ? e.message.slice(0, 500) : String(e).slice(0, 500),
+        lastError,
         nextAttemptAt: new Date(Date.now() + backoff),
       },
     });
+    if (dead) await raiseDeadLetterAlert(updated, lastError);
+    return updated;
+  }
+}
+
+/**
+ * There is no attempt 21: once MAX_ATTEMPTS is exhausted the event
+ * dead-letters to FAILED, and this alert makes that silence visible on the
+ * admin overview. Recovery is requeueOutboxAction once the cause is fixed;
+ * a re-exhausted event correctly raises a fresh alert.
+ */
+async function raiseDeadLetterAlert(event: CarrierEventOutbox, lastError: string): Promise<void> {
+  try {
+    const pkg = await prisma.package.findUnique({
+      where: { id: event.packageId },
+      select: { storeId: true, trackingNumber: true },
+    });
+    if (!pkg) return;
+    await prisma.adminAlert.create({
+      data: {
+        type: "CARRIER_EVENT_FAILED",
+        storeId: pkg.storeId,
+        packageId: event.packageId,
+        message: `${event.eventType} for ${pkg.trackingNumber} (${event.carrier}) was not delivered after ${event.attempts} attempts. Last error: ${lastError}`,
+      },
+    });
+  } catch (alertError) {
+    // The outbox row is already FAILED; a lost alert must not crash dispatch.
+    console.error("[carrier-events] could not raise dead-letter alert", alertError);
   }
 }
 

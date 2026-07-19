@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Session } from "next-auth";
 import { logoutAction } from "@/actions/auth";
 import { hasManagementAccess } from "@/lib/session";
+import type { Messages } from "@/lib/i18n";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -9,10 +10,12 @@ export function NavBar({
   session,
   storeName,
   storeLogo,
+  nav,
 }: {
   session: Session;
   storeName: string;
   storeLogo: string | null;
+  nav: Messages["nav"];
 }) {
   const isAdmin = session.user.role === "ADMIN";
   // Administration (admins chain-wide, managers their own store) needs a
@@ -35,17 +38,17 @@ export function NavBar({
         {/* Desktop nav; handhelds use the bottom tab bar instead. */}
         <nav className="hidden items-center gap-1 text-sm sm:flex">
           <Button asChild variant="ghost" size="sm">
-            <Link href="/scan">Scan</Link>
+            <Link href="/scan">{nav.scan}</Link>
           </Button>
           <Button asChild variant="ghost" size="sm">
-            <Link href="/packages">Packages</Link>
+            <Link href="/packages">{nav.packages}</Link>
           </Button>
           <Button asChild variant="ghost" size="sm">
-            <Link href="/expected">Expected</Link>
+            <Link href="/expected">{nav.expected}</Link>
           </Button>
           {showAdmin && (
             <Button asChild variant="ghost" size="sm">
-              <Link href="/admin">Admin</Link>
+              <Link href="/admin">{nav.admin}</Link>
             </Button>
           )}
         </nav>
@@ -54,16 +57,16 @@ export function NavBar({
             {storeName}
           </Badge>
           <div className="hidden items-center gap-2 sm:flex">
-            <span className="text-sm text-muted-foreground">
-              {session.user.name}
-            </span>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/profile">{session.user.name}</Link>
+            </Button>
             <Badge variant={isAdmin ? "default" : "outline"}>
               {session.user.role}
             </Badge>
           </div>
           <form action={logoutAction}>
             <Button type="submit" variant="outline" size="sm">
-              Sign out
+              {nav.signOut}
             </Button>
           </form>
         </div>

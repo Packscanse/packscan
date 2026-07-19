@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import type { ProcessScanResult } from "@/actions/scan";
-import { STATUS_LABELS } from "@/lib/status";
+import type { ProcessScanResult } from "@/lib/scan-flow";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { useT } from "@/components/i18n/I18nProvider";
 
 export function ScanResultCard({
   result,
@@ -13,6 +13,7 @@ export function ScanResultCard({
   result: ProcessScanResult;
   onNext: () => void;
 }) {
+  const t = useT();
   return (
     <Card
       className={
@@ -26,22 +27,22 @@ export function ScanResultCard({
           <>
             <p className="text-lg font-semibold sm:text-base sm:font-medium">
               {result.kind === "created"
-                ? `✓ Registered — ${STATUS_LABELS[result.status]}`
-                : `✓ ${result.fromStatus ? STATUS_LABELS[result.fromStatus] : ""} → ${STATUS_LABELS[result.status]}`}
+                ? `✓ ${t.scan.registered} — ${t.status[result.status]}`
+                : `✓ ${result.fromStatus ? t.status[result.fromStatus] : ""} → ${t.status[result.status]}`}
             </p>
             <p className="text-sm text-muted-foreground">
               {result.carrier} · <span className="font-mono">{result.trackingNumber}</span>
             </p>
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               <Button type="button" size="lg" onClick={onNext} className="sm:h-8 sm:text-sm">
-                Scan next
+                {t.scan.scanNext}
               </Button>
               <Button asChild variant="outline">
-                <Link href={`/packages/${result.packageId}`}>View package</Link>
+                <Link href={`/packages/${result.packageId}`}>{t.scan.viewPackage}</Link>
               </Button>
               {result.direction === "OUTBOUND" && result.kind === "created" && (
                 <Button asChild variant="outline">
-                  <Link href={`/packages/${result.packageId}/receipt`}>Print drop-off receipt</Link>
+                  <Link href={`/packages/${result.packageId}/receipt`}>{t.scan.printReceipt}</Link>
                 </Button>
               )}
             </div>
@@ -51,7 +52,7 @@ export function ScanResultCard({
             <p className="font-medium text-destructive">{result.error}</p>
             <div className="flex flex-col gap-2 sm:block">
               <Button type="button" variant="outline" size="lg" onClick={onNext} className="sm:h-8 sm:text-sm">
-                Scan again
+                {t.scan.scanAgain}
               </Button>
             </div>
           </>

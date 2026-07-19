@@ -1,6 +1,6 @@
 import type { PackageStatus } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
-import { STATUS_LABELS } from "@/lib/status";
+import { getT } from "@/lib/i18n/server";
 import { cn } from "@/lib/utils";
 
 const STATUS_CLASSES: Record<PackageStatus, string> = {
@@ -14,10 +14,11 @@ const STATUS_CLASSES: Record<PackageStatus, string> = {
   CANCELLED: "bg-red-100 text-red-900 dark:bg-red-900/40 dark:text-red-200",
 };
 
-export function PackageStatusBadge({ status }: { status: PackageStatus }) {
+export async function PackageStatusBadge({ status }: { status: PackageStatus }) {
+  const t = await getT();
   return (
     <Badge variant="secondary" className={cn("border-transparent", STATUS_CLASSES[status])}>
-      {STATUS_LABELS[status]}
+      {t.status[status]}
     </Badge>
   );
 }

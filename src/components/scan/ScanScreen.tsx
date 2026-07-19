@@ -8,15 +8,11 @@ import {
   type CarrierCode,
   type DetectionResult,
 } from "@/lib/carriers";
-import { FLOW_DIRECTION, FLOW_LABELS, type ScanFlow } from "@/lib/status";
+import { FLOW_DIRECTION, type ScanFlow } from "@/lib/status";
 import type { HandoverInput } from "@/lib/verification";
 import type { HandoverContext } from "@/lib/packages";
-import {
-  lookupPreAdvice,
-  processScan,
-  type PreAdviceMatch,
-  type ProcessScanResult,
-} from "@/actions/scan";
+import { lookupPreAdvice, processScan } from "@/actions/scan";
+import type { PreAdviceMatch, ProcessScanResult } from "@/lib/scan-flow";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +24,7 @@ import { CarrierBadge } from "./CarrierBadge";
 import { HandoverPanel } from "./HandoverPanel";
 import { ScanResultCard } from "./ScanResultCard";
 import { useOfflineScanQueue } from "./useOfflineScanQueue";
+import { useT } from "@/components/i18n/I18nProvider";
 
 interface PendingScan {
   code: string;
@@ -46,6 +43,7 @@ export function ScanScreen({
   canOverride: boolean;
   sessionUserId: string;
 }) {
+  const t = useT();
   const [flow, setFlow] = useState<ScanFlow>("INBOUND_PICKUP");
   const [pendingScan, setPendingScan] = useState<PendingScan | null>(null);
   const [carrier, setCarrier] = useState<CarrierCode>("UNKNOWN");
@@ -257,24 +255,23 @@ export function ScanScreen({
   return (
     <div className="grid gap-4">
       <div className="grid gap-2">
-        <h1 className="text-xl font-semibold">Scan</h1>
+        <h1 className="text-xl font-semibold">{t.scan.title}</h1>
         <FlowPicker value={flow} onChange={setFlow} />
       </div>
 
       {queuedCount > 0 && (
         <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
-          {queuedCount} scan{queuedCount === 1 ? "" : "s"} saved offline — syncing automatically
-          when the connection returns.
+          {t.scan.offlineBanner.replace("{count}", String(queuedCount))}
         </p>
       )}
       {syncNotices.length > 0 && (
         <div className="grid gap-1 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
-          <p className="font-medium">Synced scans that need attention:</p>
+          <p className="font-medium">{t.scan.syncTitle}</p>
           {syncNotices.map((notice, i) => (
             <p key={i}>{notice}</p>
           ))}
           <Button type="button" variant="outline" size="sm" onClick={dismissNotices} className="justify-self-start">
-            Dismiss
+            {t.scan.dismiss}
           </Button>
         </div>
       )}
@@ -288,21 +285,18 @@ export function ScanScreen({
               onChange={(e) => setRapid(e.target.checked)}
               className="size-4 accent-primary"
             />
-            Rapid intake
+            {t.scan.rapidIntake}
           </label>
           {rapid && (
             <>
               <Input
                 value={rapidShelf}
                 onChange={(e) => setRapidShelf(e.target.value)}
-                placeholder="Batch shelf (e.g. A3)"
-                aria-label="Batch shelf location"
+                placeholder={t.scan.batchShelf}
+                aria-label={t.scan.batchShelf}
                 className="h-11 w-40 md:h-8"
               />
-              <p className="text-xs text-muted-foreground">
-                Announced (pre-advised) parcels register on scan — no confirm tap. Log-only mode
-                also auto-confirms unambiguous labels. Everything else shows the confirm card.
-              </p>
+              <p className="text-xs text-muted-foreground">{t.scan.rapidHint}</p>
             </>
           )}
         </div>
@@ -312,15 +306,13 @@ export function ScanScreen({
         <Card>
           <CardHeader>
             <CardTitle className="text-base">
-              Scan a package — {FLOW_LABELS[flow]}
+              {t.scan.scanTitlePrefix} {t.flow[flow]}
             </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4">
             {/* Hardware scanner: invisible, always armed while scanning. */}
             <HardwareScannerInput onDetect={(code) => handleCode(code, "HARDWARE_SCANNER")} />
-            <p className="hidden text-sm text-muted-foreground sm:block">
-              Hardware scanner ready — just scan a label. Or:
-            </p>
+            <p className="hidden text-sm text-muted-foreground sm:block">{t.scan.scannerReady}</p>
 
             {cameraOn ? (
               <div className="grid gap-2">
@@ -332,13 +324,13 @@ export function ScanScreen({
                   }}
                 />
                 <Button type="button" variant="outline" onClick={stopCamera}>
-                  Stop camera
+                  {t.scan.stopCamera}
                 </Button>
               </div>
             ) : (
               <div className="grid gap-2">
                 <Button type="button" size="lg" variant="default" onClick={startCamera} className="sm:h-9">
-                  Scan with camera
+                  {t.scan.scanWithCamera}
                 </Button>
                 {cameraError && <p className="text-sm text-destructive">{cameraError}</p>}
               </div>
@@ -355,11 +347,11 @@ export function ScanScreen({
               <Input
                 value={manualValue}
                 onChange={(e) => setManualValue(e.target.value)}
-                placeholder="Enter tracking number manually"
-                aria-label="Manual tracking number entry"
+                placeholder={t.scan.manualPlaceholder}
+                aria-label={t.scan.manualPlaceholder}
               />
               <Button type="submit" variant="outline" disabled={manualValue.trim().length < 6}>
-                Use
+                {t.scan.use}
               </Button>
             </form>
           </CardContent>
@@ -369,12 +361,12 @@ export function ScanScreen({
       {pendingScan && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Confirm scan</CardTitle>
+            <CardTitle className="text-base">{t.scan.confirmScan}</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4">
             <div className="grid gap-1">
               <p className="font-mono text-lg">{pendingScan.code}</p>
-              <p className="text-xs text-muted-foreground">{FLOW_LABELS[flow]}</p>
+              <p className="text-xs text-muted-foreground">{t.flow[flow]}</p>
             </div>
 
             <CarrierBadge
@@ -384,9 +376,7 @@ export function ScanScreen({
             />
 
             {preAdviceMatched && (
-              <p className="text-sm text-green-700 dark:text-green-400">
-                Announced by the carrier — details pre-filled from pre-advice.
-              </p>
+              <p className="text-sm text-green-700 dark:text-green-400">{t.scan.preAdviceMatched}</p>
             )}
 
             {/* Inbound pickup: the recipient. Outbound: the private sender dropping off. */}
@@ -394,7 +384,7 @@ export function ScanScreen({
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="grid gap-2">
                   <Label htmlFor="customer-name">
-                    {flow === "OUTBOUND_HANDOFF" ? "Sender name" : "Customer name"}
+                    {flow === "OUTBOUND_HANDOFF" ? t.scan.senderName : t.scan.customerName}
                   </Label>
                   <Input
                     id="customer-name"
@@ -404,7 +394,7 @@ export function ScanScreen({
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="customer-phone">
-                    {flow === "OUTBOUND_HANDOFF" ? "Sender phone" : "Phone (SMS notification)"}
+                    {flow === "OUTBOUND_HANDOFF" ? t.scan.senderPhone : t.scan.customerPhone}
                   </Label>
                   <Input
                     id="customer-phone"
@@ -415,7 +405,7 @@ export function ScanScreen({
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="customer-email">
-                    {flow === "OUTBOUND_HANDOFF" ? "Sender email" : "Email (fallback notification)"}
+                    {flow === "OUTBOUND_HANDOFF" ? t.scan.senderEmail : t.scan.customerEmail}
                   </Label>
                   <Input
                     id="customer-email"
@@ -425,7 +415,7 @@ export function ScanScreen({
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="customer-notes">Notes</Label>
+                  <Label htmlFor="customer-notes">{t.scan.notes}</Label>
                   <Input
                     id="customer-notes"
                     value={customer.notes}
@@ -434,7 +424,7 @@ export function ScanScreen({
                 </div>
                 {flow === "INBOUND_PICKUP" && (
                   <div className="grid gap-2">
-                    <Label htmlFor="shelf-location">Shelf location</Label>
+                    <Label htmlFor="shelf-location">{t.scan.shelfLocation}</Label>
                     <Input
                       id="shelf-location"
                       value={customer.shelf}
@@ -448,10 +438,10 @@ export function ScanScreen({
 
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button type="button" size="lg" onClick={confirmScan} disabled={isPending} className="sm:h-8 sm:text-sm">
-                {isPending ? "Saving…" : "Confirm scan"}
+                {isPending ? t.scan.saving : t.scan.confirmScan}
               </Button>
               <Button type="button" variant="outline" onClick={discardScan} disabled={isPending}>
-                Discard
+                {t.scan.discard}
               </Button>
             </div>
           </CardContent>
@@ -462,7 +452,7 @@ export function ScanScreen({
         <Card>
           <CardHeader>
             <CardTitle className="text-base">
-              Confirm handover — <span className="font-mono">{handover.trackingNumber}</span>
+              {t.handover.confirmTitle} <span className="font-mono">{handover.trackingNumber}</span>
             </CardTitle>
           </CardHeader>
           <CardContent>

@@ -18,6 +18,17 @@ enum Role {
   CLERK
 }
 
+// UI language, chosen per user on their profile.
+enum Locale {
+  SV
+  EN
+  DE
+  NL
+  NO
+  DA
+  FI
+}
+
 enum Carrier {
   DHL
   POSTNORD
@@ -64,6 +75,11 @@ enum CarrierEventStatus {
   FAILED
 }
 
+enum AdminAlertType {
+  // A carrier event exhausted every delivery attempt (dead-lettered FAILED).
+  CARRIER_EVENT_FAILED
+}
+
 enum ScanInputMethod {
   CAMERA
   HARDWARE_SCANNER
@@ -97,28 +113,29 @@ enum IdType {
 // ---------- Models ----------
 
 model Store {
-  id        String   @id @default(cuid())
-  name      String
-  code      String   @unique
-  address   String?
+  id                 String   @id @default(cuid())
+  name               String
+  code               String   @unique
+  address            String?
   // Staff auto-logout after this many minutes of inactivity (1-10).
-  sessionIdleMinutes Int @default(10)
+  sessionIdleMinutes Int      @default(10)
   // Days a parcel may await pickup before it counts as overdue for return.
-  pickupDeadlineDays Int @default(7)
+  pickupDeadlineDays Int      @default(7)
   // Chain branding: the store's primary color (hex, e.g. ICA red) themes
   // the app for everyone signed in to this store. Null = default theme.
-  brandColor String?
+  brandColor         String?
   // Store logo as a data URL (PNG/JPEG/SVG/WebP, ≤256KB) shown in the top
   // bar. DB-stored so branding needs no external file storage; move to a
   // CDN URL later without changing consumers.
-  logoData   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  logoData           String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  users      User[]
-  packages   Package[]
-  scanEvents ScanEvent[]
-  preAdvices PreAdvice[]
+  users       User[]
+  packages    Package[]
+  scanEvents  ScanEvent[]
+  preAdvices  PreAdvice[]
+  adminAlerts AdminAlert[]
 }
 
 model User {
@@ -128,15 +145,20 @@ model User {
   // Optional 6-digit counter PIN (bcrypt). PIN sessions can scan but never
   // reach administration — that always requires the password.
   pinHash      String?
+  // 4-digit sign-in number for the device app (all-digits login: number +
+  // PIN). Globally unique; assigned automatically, shown in user admin.
+  loginNumber  String?  @unique
   name         String
   role         Role     @default(CLERK)
+  locale       Locale   @default(EN)
   storeId      String
   store        Store    @relation(fields: [storeId], references: [id], onDelete: Restrict)
   active       Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  scanEvents ScanEvent[]
+  scanEvents     ScanEvent[]
+  resolvedAlerts AdminAlert[]
 
   @@index([storeId])
 }
@@ -165,12 +187,21 @@ model Package {
   notifications Notification[]
   preAdvice     PreAdvice?
   carrierEvents CarrierEventOutbox[]
+  adminAlerts   AdminAlert[]
 
   @@unique([storeId, trackingNumber, direction])
-  @@index([storeId, status])
+  // Store package list: filter by store (+ optional status), newest first,
+  // paginated. The composite also serves plain (storeId) and (storeId,status)
+  // equality via its leftmost prefix, so it supersedes the old [storeId,status].
+  @@index([storeId, status, updatedAt(sort: Desc)])
+  @@index([storeId, updatedAt(sort: Desc)])
   @@index([trackingNumber])
   // Chain-wide shelf aging aggregates filter on status alone.
   @@index([status])
+  // Date-range report aggregates (received today / last 30 days), chain-wide
+  // and per store — without these each dashboard load seq-scans all history.
+  @@index([createdAt])
+  @@index([storeId, createdAt])
 }
 
 // Append-only audit log; Package.status is the current-state cache.
@@ -206,25 +237,25 @@ model ScanEvent {
 // Proof of handover recorded on the PICKED_UP transition: what the clerk
 // verified, per the carrier's pickup policy. One per scan event.
 model HandoverVerification {
-  id          String    @id @default(cuid())
-  scanEventId String    @unique
-  scanEvent   ScanEvent @relation(fields: [scanEventId], references: [id], onDelete: Cascade)
+  id             String    @id @default(cuid())
+  scanEventId    String    @unique
+  scanEvent      ScanEvent @relation(fields: [scanEventId], references: [id], onDelete: Cascade)
   // The QR/pickup code the customer presented from the carrier's own app,
   // captured by scan (or typed). Audit evidence in v1; validated against the
   // carrier's API once credentials exist (CarrierProvider seam).
-  presentedCode String?
+  presentedCode  String?
   // True once the carrier's API confirmed the presented code (Phase 2);
   // false means captured-as-evidence only.
-  codeValidated Boolean @default(false)
-  idChecked     Boolean @default(false)
-  idType        IdType?
+  codeValidated  Boolean   @default(false)
+  idChecked      Boolean   @default(false)
+  idType         IdType?
   // Set when someone other than the addressee collects (proxy pickup).
-  collectorName String?
+  collectorName  String?
   // Manager override: handover completed without meeting the carrier policy.
   // Always paired with a reason; stands out in the audit trail by design.
-  override       Boolean @default(false)
+  override       Boolean   @default(false)
   overrideReason String?
-  createdAt     DateTime @default(now())
+  createdAt      DateTime  @default(now())
 }
 
 // At-least-once delivery queue for carrier lifecycle events. A row is
@@ -233,22 +264,45 @@ model HandoverVerification {
 // stay as a delivery log; NOT_CONFIGURED rows can be re-queued once a
 // carrier's API credentials arrive.
 model CarrierEventOutbox {
-  id        String             @id @default(cuid())
-  packageId String
-  package   Package            @relation(fields: [packageId], references: [id], onDelete: Cascade)
-  carrier   Carrier
-  eventType CarrierEventType
+  id            String             @id @default(cuid())
+  packageId     String
+  package       Package            @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  carrier       Carrier
+  eventType     CarrierEventType
   // Event-specific payload, e.g. the proof-of-delivery summary for PICKED_UP.
-  payload   Json?
-  status    CarrierEventStatus @default(PENDING)
-  attempts  Int                @default(0)
-  lastError String?
-  nextAttemptAt DateTime       @default(now())
-  createdAt DateTime           @default(now())
-  sentAt    DateTime?
+  payload       Json?
+  status        CarrierEventStatus @default(PENDING)
+  attempts      Int                @default(0)
+  lastError     String?
+  nextAttemptAt DateTime           @default(now())
+  createdAt     DateTime           @default(now())
+  sentAt        DateTime?
 
   @@index([status, nextAttemptAt])
   @@index([packageId])
+}
+
+// Something went wrong that an admin must see — today raised only when a
+// carrier event dead-letters after MAX_ATTEMPTS. Shown on the admin overview
+// until resolved by hand; requeueing the outbox is the usual fix.
+model AdminAlert {
+  id        String         @id @default(cuid())
+  type      AdminAlertType
+  storeId   String
+  store     Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  // Nullable so alert history outlives purged/deleted packages.
+  packageId String?
+  package   Package?       @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  message   String
+  createdAt DateTime       @default(now())
+
+  resolvedAt   DateTime?
+  resolvedById String?
+  resolvedBy   User?     @relation(fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  // Overview lists open alerts (resolvedAt IS NULL) newest first.
+  @@index([resolvedAt, createdAt])
+  @@index([storeId])
 }
 
 // What a carrier announced as inbound for a store (the pre-advice/manifest).

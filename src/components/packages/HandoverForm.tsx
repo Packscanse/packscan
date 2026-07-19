@@ -6,6 +6,7 @@ import type { HandoverInput } from "@/lib/verification";
 import { completePickupAction } from "@/actions/packages";
 import { HandoverPanel } from "@/components/scan/HandoverPanel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useT } from "@/components/i18n/I18nProvider";
 
 /** Detail-page pickup completion: same verification step as the scan screen. */
 export function HandoverForm({
@@ -23,6 +24,7 @@ export function HandoverForm({
   shelfLocation: string | null;
   canOverride: boolean;
 }) {
+  const t = useT();
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -36,7 +38,7 @@ export function HandoverForm({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Complete pickup</CardTitle>
+        <CardTitle className="text-base">{t.handover.completePickup}</CardTitle>
       </CardHeader>
       <CardContent>
         <HandoverPanel

@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { LOCALE_TAGS } from "@/lib/i18n";
+import { getUserLocale } from "@/lib/i18n/server";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -27,13 +29,17 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // The signed-in user's language drives the document lang; without a
+  // session this resolves to the default (English).
+  const lang = LOCALE_TAGS[await getUserLocale()];
+
   return (
-    <html lang="en">
+    <html lang={lang}>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

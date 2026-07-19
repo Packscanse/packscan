@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { getRequiredSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { CARRIER_LABELS } from "@/lib/carriers";
-import { STATUS_LABELS } from "@/lib/status";
+import { getT } from "@/lib/i18n/server";
 import { PrintButton } from "@/components/packages/PrintButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,6 +21,7 @@ export default async function ReceiptPage({
   params: Promise<{ id: string }>;
 }) {
   const session = await getRequiredSession();
+  const t = await getT();
   const { id } = await params;
 
   const pkg = await prisma.package.findUnique({
@@ -49,11 +50,11 @@ export default async function ReceiptPage({
     // print: sized for 80mm thermal receipt printers (~72mm printable).
     <div className="mx-auto grid max-w-md gap-4 print:mx-0 print:max-w-[72mm] print:gap-2 print:text-xs">
       <div className="flex items-center justify-between print:hidden">
-        <h1 className="text-xl font-semibold">Drop-off receipt</h1>
+        <h1 className="text-xl font-semibold">{t.receipt.title}</h1>
         <div className="flex gap-2">
           <PrintButton />
           <Button asChild variant="outline">
-            <Link href={`/packages/${pkg.id}`}>Back to package</Link>
+            <Link href={`/packages/${pkg.id}`}>{t.receipt.back}</Link>
           </Button>
         </div>
       </div>
@@ -65,38 +66,35 @@ export default async function ReceiptPage({
             {pkg.store.address && <p className="text-muted-foreground">{pkg.store.address}</p>}
           </div>
           <Separator />
-          <p className="font-medium">Parcel received for carrier handoff</p>
+          <p className="font-medium">{t.receipt.receivedForHandoff}</p>
           <div className="grid gap-1">
             <p>
-              <span className="text-muted-foreground">Tracking number: </span>
+              <span className="text-muted-foreground">{t.receipt.trackingNumber}: </span>
               <span className="font-mono">{pkg.trackingNumber}</span>
             </p>
             <p>
-              <span className="text-muted-foreground">Carrier: </span>
+              <span className="text-muted-foreground">{t.receipt.carrier}: </span>
               {CARRIER_LABELS[pkg.carrier]}
             </p>
             {pkg.customerName && (
               <p>
-                <span className="text-muted-foreground">Sender: </span>
+                <span className="text-muted-foreground">{t.receipt.sender}: </span>
                 {pkg.customerName}
               </p>
             )}
             <p>
-              <span className="text-muted-foreground">Received: </span>
+              <span className="text-muted-foreground">{t.receipt.received}: </span>
               {receivedEvent
-                ? `${format(receivedEvent.scannedAt, "MMM d yyyy, HH:mm")} by ${receivedEvent.user.name}`
+                ? `${format(receivedEvent.scannedAt, "MMM d yyyy, HH:mm")} ${t.receipt.by} ${receivedEvent.user.name}`
                 : format(pkg.createdAt, "MMM d yyyy, HH:mm")}
             </p>
             <p>
-              <span className="text-muted-foreground">Status: </span>
-              {STATUS_LABELS[pkg.status]}
+              <span className="text-muted-foreground">{t.receipt.status}: </span>
+              {t.status[pkg.status]}
             </p>
           </div>
           <Separator />
-          <p className="text-xs text-muted-foreground">
-            This receipt confirms the parcel was received at the pickup point above.
-            Tracking and delivery remain subject to the carrier&rsquo;s terms.
-          </p>
+          <p className="text-xs text-muted-foreground">{t.receipt.footer}</p>
         </CardContent>
       </Card>
     </div>

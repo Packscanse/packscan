@@ -2,24 +2,24 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Inbox, PackageSearch, ScanLine, ShieldCheck } from "lucide-react";
+import { Inbox, PackageSearch, ScanLine, ShieldCheck, User } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const TABS = [
-  { href: "/scan", label: "Scan", icon: ScanLine },
-  { href: "/packages", label: "Packages", icon: PackageSearch },
-  { href: "/expected", label: "Expected", icon: Inbox },
-] as const;
+import { useT } from "@/components/i18n/I18nProvider";
 
 /**
  * Thumb-reach navigation for handhelds: fixed bottom tab bar, hidden on
  * desktop where the top NavBar carries the same links.
  */
 export function MobileNav({ isAdmin }: { isAdmin: boolean }) {
+  const t = useT();
   const pathname = usePathname();
-  const tabs = isAdmin
-    ? [...TABS, { href: "/admin", label: "Admin", icon: ShieldCheck } as const]
-    : TABS;
+  const tabs = [
+    { href: "/scan", label: t.nav.scan, icon: ScanLine },
+    { href: "/packages", label: t.nav.packages, icon: PackageSearch },
+    { href: "/expected", label: t.nav.expected, icon: Inbox },
+    ...(isAdmin ? [{ href: "/admin", label: t.nav.admin, icon: ShieldCheck }] : []),
+    { href: "/profile", label: t.nav.profile, icon: User },
+  ];
 
   return (
     <nav

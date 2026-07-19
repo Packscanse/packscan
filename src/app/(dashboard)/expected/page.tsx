@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { getRequiredSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { CARRIER_LABELS } from "@/lib/carriers";
+import { getT } from "@/lib/i18n/server";
 import { PreAdviceImportForm } from "@/components/admin/PreAdviceImportForm";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +23,7 @@ import {
  */
 export default async function ExpectedPage() {
   const session = await getRequiredSession();
+  const t = await getT();
 
   const [announced, receivedToday] = await Promise.all([
     prisma.preAdvice.findMany({
@@ -42,27 +44,25 @@ export default async function ExpectedPage() {
 
   return (
     <div className="grid gap-4">
-      <h1 className="text-xl font-semibold">Expected parcels</h1>
+      <h1 className="text-xl font-semibold">{t.expected.title}</h1>
 
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
-            Announced, not yet received ({announced.length})
+            {t.expected.announced.replace("{count}", String(announced.length))}
           </CardTitle>
         </CardHeader>
         <CardContent>
           {announced.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Nothing outstanding — every announced parcel has been scanned in.
-            </p>
+            <p className="text-sm text-muted-foreground">{t.expected.nothingOutstanding}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Tracking number</TableHead>
-                  <TableHead>Carrier</TableHead>
-                  <TableHead>Recipient</TableHead>
-                  <TableHead>Announced</TableHead>
+                  <TableHead>{t.expected.colTracking}</TableHead>
+                  <TableHead>{t.expected.colCarrier}</TableHead>
+                  <TableHead>{t.expected.colRecipient}</TableHead>
+                  <TableHead>{t.expected.colAnnounced}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -85,7 +85,7 @@ export default async function ExpectedPage() {
       {receivedToday.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Received today ({receivedToday.length})</CardTitle>
+            <CardTitle className="text-base">{t.expected.receivedToday.replace("{count}", String(receivedToday.length))}</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-1 text-sm">
             {receivedToday.map((advice) => (
@@ -113,7 +113,7 @@ export default async function ExpectedPage() {
       {session.user.role === "ADMIN" && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Import pre-advice</CardTitle>
+            <CardTitle className="text-base">{t.expected.importTitle}</CardTitle>
           </CardHeader>
           <CardContent>
             <PreAdviceImportForm storeId={session.user.storeId} />

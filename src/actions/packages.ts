@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getRequiredSession } from "@/lib/session";
 import { advanceStatus, cancelPackage, markForReturn } from "@/lib/packages";
+import { lookupCarrierStatus, type CarrierStatusResult } from "@/lib/carrier-lookup";
 import { CancelReasonSchema, CourierRefSchema, HandoverInputSchema } from "@/lib/validation/scan";
 
 // Loads the package and enforces store scoping: clerks only touch their own
@@ -83,6 +84,20 @@ export async function completePickupAction(
   revalidatePath("/packages");
   revalidatePath(`/packages/${packageId}`);
   return { ok: true };
+}
+
+/**
+ * "Where is this parcel?" — for the clerk investigating a parcel a customer
+ * says has gone missing. Scoping here, lookup in the shared lib (also used
+ * by GET /api/v1/packages/:id/carrier-status). CarrierStatusResult lives in
+ * "@/lib/carrier-lookup" ("use server" files may only export async functions).
+ */
+export async function lookupCarrierStatusAction(
+  packageId: string
+): Promise<CarrierStatusResult> {
+  const { pkg } = await loadScopedPackage(packageId);
+  if (!pkg) return { ok: false, code: "LOOKUP_FAILED" };
+  return lookupCarrierStatus(pkg);
 }
 
 export async function cancelPackageAction(

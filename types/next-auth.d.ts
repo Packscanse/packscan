@@ -1,4 +1,4 @@
-import type { Role } from "@prisma/client";
+import type { Locale, Role } from "@prisma/client";
 import type { DefaultSession } from "next-auth";
 // Required so the declare block below augments the subpath module instead of
 // being an unresolved ambient declaration.
@@ -14,6 +14,7 @@ declare module "next-auth" {
       role: Role;
       storeId: string;
       authMethod: AuthMethod;
+      locale: Locale;
     } & DefaultSession["user"];
   }
 
@@ -23,6 +24,7 @@ declare module "next-auth" {
     /** Store's inactivity timeout, carried into the JWT at sign-in. */
     idleMinutes: number;
     authMethod: AuthMethod;
+    locale: Locale;
   }
 }
 
@@ -31,6 +33,7 @@ declare module "next-auth/jwt" {
     role: Role;
     storeId: string;
     authMethod?: AuthMethod;
+    locale?: Locale;
     /** Last time the account was re-verified against the DB (ms epoch). */
     checkedAt?: number;
     /** Store-configured inactivity timeout in minutes (1-10). */

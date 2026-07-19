@@ -3,6 +3,7 @@ import type { Direction, PackageStatus, Prisma } from "@prisma/client";
 import { getRequiredSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { STATUS_LABELS } from "@/lib/status";
+import { getT } from "@/lib/i18n/server";
 import { PackageTable } from "@/components/packages/PackageTable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +33,7 @@ export default async function PackagesPage({
   }>;
 }) {
   const session = await getRequiredSession();
+  const t = await getT();
   const params = await searchParams;
 
   const status = STATUSES.includes(params.status as PackageStatus)
@@ -104,17 +106,19 @@ export default async function PackagesPage({
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-semibold">Packages</h1>
+        <h1 className="text-xl font-semibold">{t.packages.title}</h1>
         {overdueCount > 0 && !overdue && (
           <Button asChild variant="destructive" size="sm">
             <Link href="/packages?overdue=1">
-              {overdueCount} overdue for return ({deadlineDays}-day deadline)
+              {t.packages.overdueButton
+                .replace("{count}", String(overdueCount))
+                .replace("{days}", String(deadlineDays))}
             </Link>
           </Button>
         )}
         {overdue && (
           <p className="text-sm text-muted-foreground">
-            Awaiting pickup longer than {deadlineDays} days — mark these for return.
+            {t.packages.overdueHint.replace("{days}", String(deadlineDays))}
           </p>
         )}
       </div>
@@ -124,48 +128,48 @@ export default async function PackagesPage({
         <Input
           name="q"
           defaultValue={q ?? ""}
-          placeholder="Search tracking #, customer or phone"
+          placeholder={t.packages.searchPlaceholder}
           className="w-full sm:w-64"
-          aria-label="Search packages"
+          aria-label={t.packages.searchPlaceholder}
         />
         <NativeSelect
           name="status"
           defaultValue={overdue ? "" : (status ?? "")}
-          aria-label="Filter by status"
+          aria-label={t.packages.colStatus}
         >
-          <option value="">All statuses</option>
+          <option value="">{t.packages.allStatuses}</option>
           {STATUSES.map((s) => (
             <option key={s} value={s}>
-              {STATUS_LABELS[s]}
+              {t.status[s]}
             </option>
           ))}
         </NativeSelect>
         <NativeSelect
           name="direction"
           defaultValue={direction ?? ""}
-          aria-label="Filter by direction"
+          aria-label={t.packages.colDirection}
         >
-          <option value="">Both directions</option>
+          <option value="">{t.packages.bothDirections}</option>
           {DIRECTIONS.map((d) => (
             <option key={d} value={d}>
-              {d.charAt(0) + d.slice(1).toLowerCase()}
+              {d === "INBOUND" ? t.packages.inbound : t.packages.outbound}
             </option>
           ))}
         </NativeSelect>
         <label className="grid gap-1 text-xs text-muted-foreground">
-          Registered from
+          {t.packages.registeredFrom}
           <Input type="date" name="from" defaultValue={params.from ?? ""} className="h-9" />
         </label>
         <label className="grid gap-1 text-xs text-muted-foreground">
-          to
+          {t.packages.to}
           <Input type="date" name="to" defaultValue={params.to ?? ""} className="h-9" />
         </label>
         <Button type="submit" variant="secondary">
-          Filter
+          {t.packages.filter}
         </Button>
         {overdue && (
           <Button asChild variant="outline">
-            <Link href="/packages">Clear overdue view</Link>
+            <Link href="/packages">{t.packages.clearOverdue}</Link>
           </Button>
         )}
       </form>
@@ -176,17 +180,20 @@ export default async function PackagesPage({
         <div className="flex items-center gap-3 text-sm">
           {page > 1 ? (
             <Button asChild variant="outline" size="sm">
-              <Link href={pageLink(page - 1)}>← Previous</Link>
+              <Link href={pageLink(page - 1)}>{t.packages.previous}</Link>
             </Button>
           ) : (
             <span />
           )}
           <span className="text-muted-foreground">
-            Page {page} of {pageCount} · {total} package(s)
+            {t.packages.pageOf
+              .replace("{page}", String(page))
+              .replace("{pages}", String(pageCount))
+              .replace("{total}", String(total))}
           </span>
           {page < pageCount && (
             <Button asChild variant="outline" size="sm">
-              <Link href={pageLink(page + 1)}>Next →</Link>
+              <Link href={pageLink(page + 1)}>{t.packages.next}</Link>
             </Button>
           )}
         </div>

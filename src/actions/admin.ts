@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { getRequiredSession, hasManagementAccess } from "@/lib/session";
 import {
   BCRYPT_ROUNDS,
+  generateLoginNumber,
   resetUserPassword,
   setUserActive,
   setUserPin,
@@ -152,6 +153,8 @@ export async function createUserAction(
         role: parsed.data.role,
         storeId: parsed.data.storeId,
         passwordHash: await bcrypt.hash(parsed.data.password, BCRYPT_ROUNDS),
+        // Every account gets its 4-digit device-app sign-in number up front.
+        loginNumber: await generateLoginNumber(),
       },
     });
     revalidatePath("/admin/users");

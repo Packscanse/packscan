@@ -3,12 +3,7 @@
 import { useState } from "react";
 import type { IdType } from "@prisma/client";
 import { CARRIER_LABELS, getPickupPolicy, type CarrierCode } from "@/lib/carriers";
-import {
-  ID_TYPES,
-  ID_TYPE_LABELS,
-  classifyHandoverScan,
-  type HandoverInput,
-} from "@/lib/verification";
+import { ID_TYPES, classifyHandoverScan, type HandoverInput } from "@/lib/verification";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useT } from "@/components/i18n/I18nProvider";
 import { CameraScanner } from "./CameraScanner";
 import { HardwareScannerInput } from "./HardwareScannerInput";
 
@@ -51,6 +47,7 @@ export function HandoverPanel({
   onConfirm: (verification: HandoverInput) => void;
   onDiscard?: () => void;
 }) {
+  const t = useT();
   const policy = getPickupPolicy(carrier);
   const [presentedCode, setPresentedCode] = useState("");
   const [cameraOn, setCameraOn] = useState(false);
@@ -87,9 +84,7 @@ export function HandoverPanel({
       setScanWarning(null);
     } else if (scan.code === trackingNumber) {
       // Habit-scanning the parcel label must never become "evidence".
-      setScanWarning(
-        "That is the parcel's own label — scan the code in the customer's carrier app instead."
-      );
+      setScanWarning(t.handover.ownLabelWarning);
     } else {
       setPresentedCode(scan.code);
       setCameraOn(false);
@@ -101,18 +96,18 @@ export function HandoverPanel({
     <div className="grid gap-4">
       <div className="grid gap-1 text-sm">
         <p>
-          <span className="text-muted-foreground">Carrier: </span>
+          <span className="text-muted-foreground">{t.handover.carrier}: </span>
           {CARRIER_LABELS[carrier]}
         </p>
         {customerName && (
           <p>
-            <span className="text-muted-foreground">Addressed to: </span>
+            <span className="text-muted-foreground">{t.handover.addressedTo}: </span>
             {customerName}
           </p>
         )}
         {shelfLocation && (
           <p className="text-base font-semibold">
-            <span className="font-normal text-muted-foreground">Shelf: </span>
+            <span className="font-normal text-muted-foreground">{t.handover.shelf}: </span>
             {shelfLocation}
           </p>
         )}
@@ -124,21 +119,20 @@ export function HandoverPanel({
       {showCode && (
         <div className="grid gap-2">
           <Label htmlFor="presented-code">
-            Scan the QR in their {CARRIER_LABELS[carrier]} app
-            {codeRequired ? "" : " (if they have one)"}, or scan their ID
+            {t.handover.scanCodeLabel
+              .replace("{carrier}", CARRIER_LABELS[carrier])
+              .replace("{optional}", codeRequired ? "" : t.handover.optionalSuffix)}
           </Label>
           {presentedCode ? (
             <div className="flex items-center gap-2">
               <p className="break-all font-mono text-sm">{presentedCode}</p>
               <Button type="button" variant="ghost" size="sm" onClick={() => setPresentedCode("")}>
-                Clear
+                {t.handover.clear}
               </Button>
             </div>
           ) : (
             <>
-              <p className="text-xs text-muted-foreground">
-                Hardware scanner ready — scan the customer&rsquo;s screen. Or:
-              </p>
+              <p className="text-xs text-muted-foreground">{t.handover.scannerReady}</p>
               {cameraOn ? (
                 <div className="grid gap-2">
                   <CameraScanner
@@ -149,7 +143,7 @@ export function HandoverPanel({
                     }}
                   />
                   <Button type="button" variant="outline" onClick={() => setCameraOn(false)}>
-                    Stop camera
+                    {t.scan.stopCamera}
                   </Button>
                 </div>
               ) : (
@@ -162,12 +156,12 @@ export function HandoverPanel({
                       setCameraOn(true);
                     }}
                   >
-                    Scan with camera
+                    {t.scan.scanWithCamera}
                   </Button>
                   <Input
                     id="presented-code"
                     className="w-full sm:w-48"
-                    placeholder="…or type the code"
+                    placeholder={t.handover.typeCode}
                     autoComplete="off"
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
@@ -197,22 +191,19 @@ export function HandoverPanel({
             }}
             className="size-4 accent-primary"
           />
-          Photo ID checked{policy.idCheck === "required" ? " (required)" : ""}
+          {t.handover.idChecked}
+          {policy.idCheck === "required" ? ` ${t.handover.required}` : ""}
         </label>
-        {idScanned && (
-          <p className="text-xs text-muted-foreground">
-            ID scanned and verified — document contents are not stored.
-          </p>
-        )}
+        {idScanned && <p className="text-xs text-muted-foreground">{t.handover.idScanned}</p>}
         {idChecked && (
           <Select value={idType} onValueChange={(v) => setIdType(v as IdType)}>
-            <SelectTrigger aria-label="Type of ID checked" className="w-full">
-              <SelectValue placeholder="Type of ID checked" />
+            <SelectTrigger aria-label={t.handover.idTypePlaceholder} className="w-full">
+              <SelectValue placeholder={t.handover.idTypePlaceholder} />
             </SelectTrigger>
             <SelectContent>
-              {ID_TYPES.map((t) => (
-                <SelectItem key={t} value={t}>
-                  {ID_TYPE_LABELS[t]}
+              {ID_TYPES.map((idTypeOption) => (
+                <SelectItem key={idTypeOption} value={idTypeOption}>
+                  {t.idType[idTypeOption]}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -222,17 +213,17 @@ export function HandoverPanel({
 
       {policy.proxyAllowed ? (
         <div className="grid gap-2">
-          <Label htmlFor="collector-name">Collected by someone else? Their name</Label>
+          <Label htmlFor="collector-name">{t.handover.collectorLabel}</Label>
           <Input
             id="collector-name"
             value={collectorName}
             onChange={(e) => setCollectorName(e.target.value)}
-            placeholder="Leave empty when the addressee collects"
+            placeholder={t.handover.collectorHint}
           />
         </div>
       ) : (
         <p className="text-xs text-muted-foreground">
-          {CARRIER_LABELS[carrier]} requires the addressee to collect in person.
+          {t.handover.noProxy.replace("{carrier}", CARRIER_LABELS[carrier])}
         </p>
       )}
 
@@ -247,25 +238,20 @@ export function HandoverPanel({
             onChange={(e) => setOverride(e.target.checked)}
             className="size-4 accent-primary disabled:opacity-50"
           />
-          Manager override — complete without full verification
+          {t.handover.overrideLabel}
         </label>
         {!canOverride && (
-          <p className="text-xs text-muted-foreground">
-            Requires an admin account — ask a manager to sign in.
-          </p>
+          <p className="text-xs text-muted-foreground">{t.handover.overrideNeedsAdmin}</p>
         )}
         {override && (
           <div className="grid gap-1">
             <Input
               value={overrideReason}
               onChange={(e) => setOverrideReason(e.target.value)}
-              placeholder="Reason (required, recorded on the audit trail)"
-              aria-label="Override reason"
+              placeholder={t.handover.overrideReason}
+              aria-label={t.handover.overrideReason}
             />
-            <p className="text-xs text-muted-foreground">
-              The pickup completes without meeting the carrier&rsquo;s policy. Whatever was
-              verified is still recorded, flagged as an override.
-            </p>
+            <p className="text-xs text-muted-foreground">{t.handover.overrideHint}</p>
           </div>
         )}
       </div>
@@ -289,11 +275,11 @@ export function HandoverPanel({
             })
           }
         >
-          {isPending ? "Saving…" : "Confirm handover"}
+          {isPending ? t.handover.saving : t.handover.confirm}
         </Button>
         {onDiscard && (
           <Button type="button" variant="outline" onClick={onDiscard} disabled={isPending}>
-            Discard
+            {t.handover.discard}
           </Button>
         )}
       </div>
