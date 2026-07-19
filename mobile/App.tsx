@@ -4,7 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { api, NetworkError } from "./src/api/client";
 import type { HandoverContext, HandoverInput, ScanInput, ScanResult } from "./src/api/types";
 import { AuthProvider, useAuth } from "./src/auth";
-import { getMessages } from "./src/i18n";
+import { DEFAULT_LOCALE, getMessages } from "./src/i18n";
 import { Button, Card, colors } from "./src/ui";
 import { HandoverScreen } from "./src/screens/HandoverScreen";
 import { LoginScreen } from "./src/screens/LoginScreen";
@@ -26,7 +26,7 @@ type HandoverJob =
 
 function Root() {
   const { ready, user, store } = useAuth();
-  const t = getMessages(user?.locale ?? "SV");
+  const t = getMessages(user?.locale ?? DEFAULT_LOCALE);
   const accent = store?.brandColor ?? undefined;
 
   const [tab, setTab] = useState<Tab>("scan");

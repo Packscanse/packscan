@@ -52,9 +52,12 @@ export async function verifyApiToken(token: string): Promise<ApiTokenPayload | n
     const { payload } = await jwtVerify(token, secret(), {
       issuer: ISSUER,
       audience: AUDIENCE,
+      algorithms: ["HS256"],
     });
     if (typeof payload.sub !== "string") return null;
-    const authMethod = payload.authMethod === "PIN" ? "PIN" : "PASSWORD";
+    // Fail safe to the least-privileged method: an absent or unexpected
+    // claim must never read as PASSWORD, which is what unlocks manager override.
+    const authMethod = payload.authMethod === "PASSWORD" ? "PASSWORD" : "PIN";
     return { sub: payload.sub, authMethod };
   } catch {
     return null;
