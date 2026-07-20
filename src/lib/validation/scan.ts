@@ -10,6 +10,9 @@ export const HandoverInputSchema = z.object({
   idChecked: z.boolean(),
   idType: z.enum(ID_TYPES).optional(),
   collectorName: optionalTrimmed(120),
+  // Proxy pickup: the collector's own ID alongside the addressee's.
+  collectorIdChecked: z.boolean().optional(),
+  collectorIdType: z.enum(ID_TYPES).optional(),
   override: z.boolean().optional(),
   overrideReason: optionalTrimmed(300),
 });

@@ -138,6 +138,10 @@ export const da: Messages = {
     visitDone: "{count} udleveret",
     visitLeft: "{count} tilbage på hylden",
     nextCustomer: "Næste kunde",
+    addresseeIdChecked: "Modtagerens billed-ID kontrolleret",
+    collectorIdChecked: "Afhenterens eget billed-ID kontrolleret",
+    needCollectorId: "kontrollér afhenterens billed-ID",
+    needCollectorIdType: "vælg typen for afhenterens ID",
   },
   packages: {
     title: "Pakker",
@@ -187,6 +191,7 @@ export const da: Messages = {
     codeValidated: "app-kode valideret af transportøren",
     codeCaptured: "app-kode registreret",
     idChecked: "ID kontrolleret",
+    collectorIdChecked: "afhenterens ID kontrolleret",
     collectedBy: "afhentet af",
     nothing: "intet",
     override: "LEDERTILSIDESÆTTELSE",

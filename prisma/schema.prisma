@@ -251,6 +251,11 @@ model HandoverVerification {
   idType         IdType?
   // Set when someone other than the addressee collects (proxy pickup).
   collectorName  String?
+  // Proxy pickups verify both documents at the counter: idChecked above is
+  // the addressee's ID, these are the collector's own. Only the fact and the
+  // document type are stored — never the documents' contents.
+  collectorIdChecked Boolean @default(false)
+  collectorIdType    IdType?
   // Manager override: handover completed without meeting the carrier policy.
   // Always paired with a reason; stands out in the audit trail by design.
   override       Boolean   @default(false)

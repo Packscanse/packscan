@@ -138,6 +138,10 @@ export const no: Messages = {
     visitDone: "{count} utlevert",
     visitLeft: "{count} igjen på hylla",
     nextCustomer: "Neste kunde",
+    addresseeIdChecked: "Mottakerens legitimasjon kontrollert",
+    collectorIdChecked: "Hentepersonens egen legitimasjon kontrollert",
+    needCollectorId: "kontroller hentepersonens legitimasjon",
+    needCollectorIdType: "velg typen for hentepersonens legitimasjon",
   },
   packages: {
     title: "Pakker",
@@ -187,6 +191,7 @@ export const no: Messages = {
     codeValidated: "app-kode validert av transportøren",
     codeCaptured: "app-kode registrert",
     idChecked: "legitimasjon kontrollert",
+    collectorIdChecked: "hentepersonens legitimasjon kontrollert",
     collectedBy: "hentet av",
     nothing: "ingenting",
     override: "LEDEROVERSTYRING",

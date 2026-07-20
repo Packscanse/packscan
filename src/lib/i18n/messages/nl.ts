@@ -138,6 +138,10 @@ export const nl: Messages = {
     visitDone: "{count} overhandigd",
     visitLeft: "{count} nog op de plank",
     nextCustomer: "Volgende klant",
+    addresseeIdChecked: "Identiteitsbewijs van de geadresseerde gecontroleerd",
+    collectorIdChecked: "Eigen identiteitsbewijs van de afhaler gecontroleerd",
+    needCollectorId: "controleer het identiteitsbewijs van de afhaler",
+    needCollectorIdType: "kies het type identiteitsbewijs van de afhaler",
   },
   packages: {
     title: "Pakketten",
@@ -187,6 +191,7 @@ export const nl: Messages = {
     codeValidated: "app-code gevalideerd door de vervoerder",
     codeCaptured: "app-code vastgelegd",
     idChecked: "identiteitsbewijs gecontroleerd",
+    collectorIdChecked: "identiteitsbewijs afhaler gecontroleerd",
     collectedBy: "afgehaald door",
     nothing: "niets",
     override: "MANAGEROVERSCHRIJVING",

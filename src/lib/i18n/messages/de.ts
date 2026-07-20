@@ -138,6 +138,10 @@ export const de: Messages = {
     visitDone: "{count} ausgehändigt",
     visitLeft: "{count} noch im Regal",
     nextCustomer: "Nächster Kunde",
+    addresseeIdChecked: "Lichtbildausweis des Empfängers geprüft",
+    collectorIdChecked: "Eigener Lichtbildausweis des Abholers geprüft",
+    needCollectorId: "Ausweis des Abholers prüfen",
+    needCollectorIdType: "Ausweistyp des Abholers wählen",
   },
   packages: {
     title: "Pakete",
@@ -187,6 +191,7 @@ export const de: Messages = {
     codeValidated: "App-Code vom Zusteller validiert",
     codeCaptured: "App-Code erfasst",
     idChecked: "Ausweis geprüft",
+    collectorIdChecked: "Ausweis des Abholers geprüft",
     collectedBy: "abgeholt von",
     nothing: "nichts",
     override: "MANAGER-FREIGABE",

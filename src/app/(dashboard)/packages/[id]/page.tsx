@@ -256,6 +256,8 @@ export default async function PackageDetailPage({
                       `${event.verification.codeValidated ? t.detail.codeValidated : t.detail.codeCaptured} (${event.verification.presentedCode})`,
                     event.verification.idChecked &&
                       `${t.detail.idChecked}${event.verification.idType ? ` (${t.idType[event.verification.idType]})` : ""}`,
+                    event.verification.collectorIdChecked &&
+                      `${t.detail.collectorIdChecked}${event.verification.collectorIdType ? ` (${t.idType[event.verification.collectorIdType]})` : ""}`,
                   ]
                     .filter(Boolean)
                     .join(" · ") || t.detail.nothing}

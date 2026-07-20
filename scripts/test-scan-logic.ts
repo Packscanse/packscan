@@ -570,6 +570,54 @@ async function main() {
     `got ${anonLookup.companions.length}`
   );
 
+  // --- Proxy pickup: counter practice demands both documents — the
+  //     collector's own ID and the addressee's. One is never enough. ---
+  const proxyScan = await registerScan({
+    ...base,
+    trackingNumber: `${TEST_PREFIX}PROXY1`,
+    flow: "INBOUND_PICKUP",
+    customerName: "Proxy Mottagare",
+  });
+  if (proxyScan.ok && proxyScan.kind === "created") {
+    const oneId = await advanceStatus({
+      ...ctx,
+      pkg: proxyScan.package,
+      inputMethod: "MANUAL_ENTRY",
+      verification: {
+        presentedCode: "PN-PROXY-CODE-1",
+        idChecked: true,
+        idType: "PASSPORT" as const,
+        collectorName: "Ombud Person",
+      },
+    });
+    check(
+      "proxy: one ID is rejected when someone else collects",
+      !oneId.ok && oneId.code === "VERIFICATION_FAILED"
+    );
+    const bothIds = await advanceStatus({
+      ...ctx,
+      pkg: proxyScan.package,
+      inputMethod: "MANUAL_ENTRY",
+      verification: {
+        presentedCode: "PN-PROXY-CODE-1",
+        idChecked: true,
+        idType: "PASSPORT" as const,
+        collectorName: "Ombud Person",
+        collectorIdChecked: true,
+        collectorIdType: "DRIVERS_LICENSE" as const,
+      },
+    });
+    check("proxy: both IDs complete the pickup", bothIds.ok && bothIds.kind === "transitioned");
+    const proxyRecord = await prisma.handoverVerification.findFirst({
+      where: { scanEvent: { packageId: proxyScan.package.id } },
+    });
+    check(
+      "proxy: collector's ID recorded with its type",
+      proxyRecord?.collectorIdChecked === true &&
+        proxyRecord?.collectorIdType === "DRIVERS_LICENSE"
+    );
+  }
+
   // Cleanup
   await deleteTestData(store.id);
 

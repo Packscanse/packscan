@@ -8,6 +8,9 @@ export interface HandoverInput {
   idChecked: boolean;
   idType?: IdType;
   collectorName?: string;
+  /** Proxy pickup: the collector's own ID, alongside the addressee's above. */
+  collectorIdChecked?: boolean;
+  collectorIdType?: IdType;
   /** Manager override: complete despite unmet policy. Reason is mandatory. */
   override?: boolean;
   overrideReason?: string;
@@ -21,6 +24,8 @@ export interface HandoverRecord {
   idChecked: boolean;
   idType: IdType | null;
   collectorName: string | null;
+  collectorIdChecked: boolean;
+  collectorIdType: IdType | null;
   override: boolean;
   overrideReason: string | null;
 }
@@ -92,12 +97,16 @@ export function checkHandover(
     };
   }
 
+  // Collector-ID fields only mean something when a collector is named.
+  const collectorIdChecked = !!collectorName && !!input.collectorIdChecked;
   const base = {
     presentedCode,
     codeValidated: false,
     idChecked: input.idChecked,
     idType: input.idChecked ? (input.idType ?? null) : null,
     collectorName,
+    collectorIdChecked,
+    collectorIdType: collectorIdChecked ? (input.collectorIdType ?? null) : null,
   };
 
   // Manager override: skips the policy gate but never the audit trail — the
@@ -128,6 +137,23 @@ export function checkHandover(
       ok: false,
       error: "This carrier does not allow pickup by someone else — the addressee must collect.",
     };
+  }
+
+  // Proxy pickups follow counter practice: both documents on the table.
+  // The collector's ID proves who they are; the addressee's proves the errand.
+  if (collectorName) {
+    if (!input.idChecked) {
+      return {
+        ok: false,
+        error: "Proxy pickup requires the addressee's photo ID as well as the collector's.",
+      };
+    }
+    if (!collectorIdChecked) {
+      return { ok: false, error: "Proxy pickup requires the collector's own photo ID." };
+    }
+    if (!input.collectorIdType) {
+      return { ok: false, error: "Select which type of ID the collector showed." };
+    }
   }
 
   return { ok: true, record: { ...base, override: false, overrideReason: null } };
