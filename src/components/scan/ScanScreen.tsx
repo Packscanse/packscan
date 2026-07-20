@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import type { ScanInputMethod } from "@prisma/client";
+import type { IdType, ScanInputMethod } from "@prisma/client";
 import {
+  CARRIER_LABELS,
   detectCarrierCandidates,
   normalizeTrackingNumber,
   type CarrierCode,
@@ -32,6 +33,26 @@ interface PendingScan {
   candidates: DetectionResult[];
 }
 
+interface VisitParcel extends HandoverContext {
+  /** Its label was scanned during this visit — only then is it handed over. */
+  scannedOff: boolean;
+  done: boolean;
+}
+
+/**
+ * One customer's pickup: the scanned parcel plus everything else waiting for
+ * them. Verification chains parcel by parcel; the physical ID check (and the
+ * collector's name) carries over so it happens once per visit, not per parcel.
+ */
+interface Visit {
+  parcels: VisitParcel[];
+  activeId: string | null;
+  inputMethod: ScanInputMethod;
+  idChecked: boolean;
+  idType: IdType | "";
+  collectorName: string;
+}
+
 const SAME_CODE_DEBOUNCE_MS = 2000;
 // Remembered per device: a phone at the counter is camera-first.
 const CAMERA_AUTO_KEY = "packscan-camera-auto";
@@ -53,8 +74,8 @@ export function ScanScreen({
   const [customer, setCustomer] = useState({ name: "", phone: "", email: "", notes: "", shelf: "" });
   const [preAdviceMatched, setPreAdviceMatched] = useState(false);
   const [result, setResult] = useState<ProcessScanResult | null>(null);
-  // Set when the server demands handover verification to complete a pickup.
-  const [handover, setHandover] = useState<(HandoverContext & { inputMethod: ScanInputMethod }) | null>(null);
+  // Set while a pickup's handover verification is in progress.
+  const [visit, setVisit] = useState<Visit | null>(null);
   const [handoverError, setHandoverError] = useState<string | null>(null);
   // Rapid intake: auto-confirm announced / high-confidence parcels with a
   // sticky batch shelf — for the morning delivery, not the counter chat.
@@ -76,7 +97,7 @@ export function ScanScreen({
 
   // Camera-first on devices where it was used before: reopen it whenever
   // the screen returns to the scanning state. Stopping it turns this off.
-  const scanningNow = !pendingScan && !handover && !result;
+  const scanningNow = !pendingScan && !visit && !result;
   useEffect(() => {
     if (scanningNow && !cameraOn && window.localStorage.getItem(CAMERA_AUTO_KEY) === "1") {
       setCameraError(null);
@@ -115,11 +136,43 @@ export function ScanScreen({
       return;
     }
     if (!res.ok && res.code === "VERIFICATION_REQUIRED") {
-      setHandover({ ...res.handover, inputMethod: method });
+      setVisit(singleParcelVisit(res.handover, method));
       setHandoverError(null);
       return;
     }
     setResult(res);
+  }
+
+  function singleParcelVisit(context: HandoverContext, method: ScanInputMethod): Visit {
+    return {
+      parcels: [{ ...context, scannedOff: true, done: false }],
+      activeId: context.packageId,
+      inputMethod: method,
+      idChecked: false,
+      idType: "",
+      collectorName: "",
+    };
+  }
+
+  /** A visit parcel's label was scanned: check it off (and activate if idle). */
+  function captureVisitParcel(normalizedTracking: string) {
+    setVisit((v) => {
+      if (!v) return v;
+      const target = v.parcels.find((p) => p.trackingNumber === normalizedTracking);
+      if (!target || target.done) return v;
+      return {
+        ...v,
+        parcels: v.parcels.map((p) =>
+          p.packageId === target.packageId ? { ...p, scannedOff: true } : p
+        ),
+        activeId: v.activeId ?? target.packageId,
+      };
+    });
+  }
+
+  function discardVisit() {
+    setVisit(null);
+    setHandoverError(null);
   }
 
   function autoConfirm(args: {
@@ -162,13 +215,24 @@ export function ScanScreen({
     setResult(null);
     setPreAdviceMatched(false);
     // Announced parcel? Exact carrier + pre-filled recipient, no typing.
-    // Already on the shelf? Straight to handover — no registration detour.
+    // Already on the shelf? Straight to handover — no registration detour —
+    // together with everything else waiting for the same customer.
     void lookupScan(code)
-      .then(({ match, handover: existing }) => {
+      .then(({ match, handover: existing, companions }) => {
         if (lastDetection.current.code !== code) return;
         if (existing && flowRef.current === "INBOUND_PICKUP") {
           setPendingScan(null);
-          setHandover({ ...existing, inputMethod: method });
+          setVisit({
+            parcels: [
+              { ...existing, scannedOff: true, done: false },
+              ...companions.map((c) => ({ ...c, scannedOff: false, done: false })),
+            ],
+            activeId: existing.packageId,
+            inputMethod: method,
+            idChecked: false,
+            idType: "",
+            collectorName: "",
+          });
           setHandoverError(null);
           return;
         }
@@ -225,30 +289,50 @@ export function ScanScreen({
   }
 
   function confirmHandover(verification: HandoverInput) {
-    if (!handover) return;
+    if (!visit?.activeId) return;
+    const active = visit.parcels.find((p) => p.packageId === visit.activeId);
+    if (!active) return;
     startTransition(async () => {
       const res = await submitScan({
-        trackingNumber: handover.trackingNumber,
+        trackingNumber: active.trackingNumber,
         flow,
-        carrier: handover.carrier,
+        carrier: active.carrier,
         carrierManual: false,
-        inputMethod: handover.inputMethod,
+        inputMethod: visit.inputMethod,
         verification,
       });
       if ("queued" in res) {
         setResult(null);
-        setHandover(null);
+        setVisit(null);
         setHandoverError(null);
         return;
       }
-      if (!res.ok && res.code === undefined) {
-        // Verification rejected (wrong code, missing ID…) — stay on the step.
+      if (!res.ok) {
+        // Verification rejected (wrong code, missing ID…) or the parcel was
+        // just updated elsewhere — stay on the step and say why.
         setHandoverError(res.error);
         return;
       }
-      setResult(res.ok ? res : null);
-      setHandover(null);
       setHandoverError(null);
+      if (visit.parcels.length === 1) {
+        // Single-parcel visit: same rhythm as always — result card, next scan.
+        setResult(res);
+        setVisit(null);
+        return;
+      }
+      // Chain to the next scanned-off parcel; the ID check carries over.
+      const parcels = visit.parcels.map((p) =>
+        p.packageId === active.packageId ? { ...p, done: true } : p
+      );
+      setResult(null);
+      setVisit({
+        ...visit,
+        parcels,
+        activeId: parcels.find((p) => p.scannedOff && !p.done)?.packageId ?? null,
+        idChecked: verification.idChecked,
+        idType: verification.idType ?? "",
+        collectorName: verification.collectorName ?? "",
+      });
     });
   }
 
@@ -257,7 +341,8 @@ export function ScanScreen({
   }
 
   // Rapid mode keeps the scanner armed even while a result is showing.
-  const scanning = !pendingScan && !handover && (!result || (rapid && rapidEligible));
+  const scanning = !pendingScan && !visit && (!result || (rapid && rapidEligible));
+  const activeParcel = visit?.parcels.find((p) => p.packageId === visit.activeId) ?? null;
 
   return (
     <div className="grid gap-4">
@@ -455,28 +540,103 @@ export function ScanScreen({
         </Card>
       )}
 
-      {handover && (
+      {visit && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">
-              {t.handover.confirmTitle} <span className="font-mono">{handover.trackingNumber}</span>
+              {activeParcel ? (
+                <>
+                  {t.handover.confirmTitle}{" "}
+                  <span className="font-mono">{activeParcel.trackingNumber}</span>
+                </>
+              ) : (
+                t.handover.visitDone.replace(
+                  "{count}",
+                  String(visit.parcels.filter((p) => p.done).length)
+                )
+              )}
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <HandoverPanel
-              carrier={handover.carrier}
-              customerName={handover.customerName}
-              trackingNumber={handover.trackingNumber}
-              shelfLocation={handover.shelfLocation}
-              canOverride={canOverride}
-              isPending={isPending}
-              error={handoverError}
-              onConfirm={confirmHandover}
-              onDiscard={() => {
-                setHandover(null);
-                setHandoverError(null);
-              }}
-            />
+          <CardContent className="grid gap-4">
+            {visit.parcels.length > 1 && (
+              <div className="grid gap-1 rounded-md border p-3">
+                <p className="text-sm font-medium">{t.handover.visitParcels}</p>
+                {visit.parcels.map((p) => (
+                  <div
+                    key={p.packageId}
+                    className={`flex flex-wrap items-center gap-x-3 gap-y-0.5 rounded-sm px-1.5 py-1 text-sm ${
+                      p.packageId === visit.activeId ? "bg-muted" : ""
+                    }`}
+                  >
+                    <span aria-hidden className={p.done ? "text-green-700 dark:text-green-400" : "text-muted-foreground"}>
+                      {p.done ? "✓" : p.scannedOff ? "●" : "○"}
+                    </span>
+                    <span className={`font-mono ${!p.scannedOff && !p.done ? "text-muted-foreground" : ""}`}>
+                      {p.trackingNumber}
+                    </span>
+                    <span className="text-muted-foreground">{CARRIER_LABELS[p.carrier]}</span>
+                    {p.shelfLocation && (
+                      <span className="ml-auto font-semibold">{p.shelfLocation}</span>
+                    )}
+                    {p.done ? (
+                      <span className="text-xs text-green-700 dark:text-green-400">
+                        {t.status.PICKED_UP}
+                      </span>
+                    ) : (
+                      !p.scannedOff && (
+                        <span className="w-full pl-6 text-xs text-muted-foreground">
+                          {t.handover.scanToInclude}
+                        </span>
+                      )
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {activeParcel ? (
+              <HandoverPanel
+                key={activeParcel.packageId}
+                carrier={activeParcel.carrier}
+                customerName={activeParcel.customerName}
+                trackingNumber={activeParcel.trackingNumber}
+                shelfLocation={activeParcel.shelfLocation}
+                canOverride={canOverride}
+                isPending={isPending}
+                error={handoverError}
+                initialIdChecked={visit.idChecked}
+                initialIdType={visit.idType}
+                initialCollectorName={visit.collectorName}
+                visitTrackings={visit.parcels
+                  .filter((p) => p.packageId !== activeParcel.packageId && !p.done)
+                  .map((p) => p.trackingNumber)}
+                onVisitScan={captureVisitParcel}
+                onConfirm={confirmHandover}
+                onDiscard={discardVisit}
+              />
+            ) : (
+              <div className="grid gap-3">
+                {/* Still armed: scanning a remaining label resumes the visit. */}
+                <HardwareScannerInput
+                  onDetect={(code) => captureVisitParcel(normalizeTrackingNumber(code))}
+                />
+                {visit.parcels.some((p) => !p.done) && (
+                  <p className="text-sm text-muted-foreground">
+                    {t.handover.visitLeft.replace(
+                      "{count}",
+                      String(visit.parcels.filter((p) => !p.done).length)
+                    )}
+                  </p>
+                )}
+                <Button
+                  type="button"
+                  size="lg"
+                  onClick={discardVisit}
+                  className="justify-self-start sm:h-8 sm:text-sm"
+                >
+                  {t.handover.nextCustomer}
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

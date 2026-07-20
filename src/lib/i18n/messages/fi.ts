@@ -133,6 +133,11 @@ export const fi: Messages = {
     confirm: "Vahvista luovutus",
     saving: "Tallennetaan…",
     discard: "Hylkää",
+    visitParcels: "Asiakkaan paketit",
+    scanToInclude: "Skannaa etiketti ottaaksesi sen mukaan tähän noutoon",
+    visitDone: "{count} luovutettu",
+    visitLeft: "{count} jäljellä hyllyssä",
+    nextCustomer: "Seuraava asiakas",
   },
   packages: {
     title: "Paketit",

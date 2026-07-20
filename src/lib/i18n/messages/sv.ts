@@ -133,6 +133,11 @@ export const sv: Messages = {
     confirm: "Bekräfta utlämning",
     saving: "Sparar…",
     discard: "Släng",
+    visitParcels: "Kundens paket",
+    scanToInclude: "Skanna paketets etikett för att ta med det i utlämningen",
+    visitDone: "{count} utlämnade",
+    visitLeft: "{count} kvar på hyllan",
+    nextCustomer: "Nästa kund",
   },
   packages: {
     title: "Paket",

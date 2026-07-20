@@ -133,6 +133,11 @@ export const da: Messages = {
     confirm: "Bekræft udlevering",
     saving: "Gemmer…",
     discard: "Kassér",
+    visitParcels: "Kundens pakker",
+    scanToInclude: "Scan etiketten for at tage den med i udleveringen",
+    visitDone: "{count} udleveret",
+    visitLeft: "{count} tilbage på hylden",
+    nextCustomer: "Næste kunde",
   },
   packages: {
     title: "Pakker",

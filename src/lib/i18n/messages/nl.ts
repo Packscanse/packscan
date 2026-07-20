@@ -133,6 +133,11 @@ export const nl: Messages = {
     confirm: "Overdracht bevestigen",
     saving: "Bezig met opslaan…",
     discard: "Verwijderen",
+    visitParcels: "Pakketten van deze klant",
+    scanToInclude: "Scan het etiket om het aan deze afhaling toe te voegen",
+    visitDone: "{count} overhandigd",
+    visitLeft: "{count} nog op de plank",
+    nextCustomer: "Volgende klant",
   },
   packages: {
     title: "Pakketten",
