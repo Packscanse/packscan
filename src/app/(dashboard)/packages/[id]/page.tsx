@@ -12,7 +12,7 @@ import {
 import { PackageStatusBadge } from "@/components/packages/PackageStatusBadge";
 import { HandoverForm } from "@/components/packages/HandoverForm";
 import { CarrierStatusCheck } from "@/components/packages/CarrierStatusCheck";
-import { CARRIER_LABELS } from "@/lib/carriers";
+import { carrierLabel } from "@/lib/carriers";
 import { formatDuration } from "@/lib/duration";
 import { getT } from "@/lib/i18n/server";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -78,7 +78,7 @@ export default async function PackageDetailPage({
         <CardContent className="grid gap-2 text-sm sm:grid-cols-2">
           <p>
             <span className="text-muted-foreground">{t.detail.carrier}: </span>
-            {CARRIER_LABELS[pkg.carrier]}
+            {carrierLabel(pkg.carrier, t)}
             {pkg.carrierManual && ` ${t.detail.manuallySet}`}
           </p>
           <p>
@@ -228,7 +228,7 @@ export default async function PackageDetailPage({
       {/* Lost-parcel investigation: ask the carrier's tracking API directly.
           UNKNOWN has no provider to ask, so the card is hidden. */}
       {pkg.carrier !== "UNKNOWN" && (
-        <CarrierStatusCheck packageId={pkg.id} carrierLabel={CARRIER_LABELS[pkg.carrier]} />
+        <CarrierStatusCheck packageId={pkg.id} carrierLabel={carrierLabel(pkg.carrier, t)} />
       )}
 
       <Card>

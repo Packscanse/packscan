@@ -30,5 +30,5 @@ export function getPickupPolicy(carrier: CarrierCode): PickupPolicy {
 }
 
 export * from "./types";
-export { CARRIER_LABELS } from "./labels";
+export { CARRIER_LABELS, carrierLabel } from "./labels";
 export { detectCarrier, detectCarrierCandidates, normalizeTrackingNumber } from "./detect";

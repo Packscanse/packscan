@@ -70,6 +70,10 @@ export const en = {
     MANUAL_ENTRY: "manual entry",
     STATUS_ACTION: "status action",
   },
+  // Real carrier names are brands (CARRIER_LABELS); only UNKNOWN localizes.
+  carrier: {
+    UNKNOWN: "Unknown / other",
+  },
   scan: {
     title: "Scan",
     rapidIntake: "Rapid intake",

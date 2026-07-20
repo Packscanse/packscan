@@ -9,7 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CARRIER_LABELS } from "@/lib/carriers";
+import { carrierLabel } from "@/lib/carriers";
 import { formatDuration } from "@/lib/duration";
 import { getT } from "@/lib/i18n/server";
 import { PackageStatusBadge } from "./PackageStatusBadge";
@@ -48,7 +48,7 @@ export async function PackageTable({ packages }: { packages: Package[] }) {
             </div>
             <div className="flex items-center justify-between gap-2 text-sm">
               <span className="text-muted-foreground">
-                {CARRIER_LABELS[pkg.carrier]}
+                {carrierLabel(pkg.carrier, t)}
                 {pkg.customerName ? ` · ${pkg.customerName}` : ""}
               </span>
               {pkg.shelfLocation && (
@@ -97,7 +97,7 @@ export async function PackageTable({ packages }: { packages: Package[] }) {
                     className="absolute inset-0"
                   />
                 </TableCell>
-                <TableCell>{CARRIER_LABELS[pkg.carrier]}</TableCell>
+                <TableCell>{carrierLabel(pkg.carrier, t)}</TableCell>
                 <TableCell>
                   {pkg.direction === "INBOUND" ? t.packages.inbound : t.packages.outbound}
                 </TableCell>

@@ -65,6 +65,9 @@ export const nl: Messages = {
     MANUAL_ENTRY: "handmatige invoer",
     STATUS_ACTION: "statusactie",
   },
+  carrier: {
+    UNKNOWN: "Onbekend / overig",
+  },
   scan: {
     title: "Scannen",
     rapidIntake: "Snelle intake",

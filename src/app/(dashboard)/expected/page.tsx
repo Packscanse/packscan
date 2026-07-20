@@ -2,7 +2,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { getRequiredSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { CARRIER_LABELS } from "@/lib/carriers";
+import { carrierLabel } from "@/lib/carriers";
 import { getT } from "@/lib/i18n/server";
 import { PreAdviceImportForm } from "@/components/admin/PreAdviceImportForm";
 import { Badge } from "@/components/ui/badge";
@@ -69,7 +69,7 @@ export default async function ExpectedPage() {
                 {announced.map((advice) => (
                   <TableRow key={advice.id}>
                     <TableCell className="font-mono">{advice.trackingNumber}</TableCell>
-                    <TableCell>{CARRIER_LABELS[advice.carrier]}</TableCell>
+                    <TableCell>{carrierLabel(advice.carrier, t)}</TableCell>
                     <TableCell>{advice.customerName ?? "—"}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {format(advice.announcedAt, "MMM d, HH:mm")}
@@ -100,7 +100,7 @@ export default async function ExpectedPage() {
                 ) : (
                   <span className="font-mono">{advice.trackingNumber}</span>
                 )}{" "}
-                <Badge variant="secondary">{CARRIER_LABELS[advice.carrier]}</Badge>{" "}
+                <Badge variant="secondary">{carrierLabel(advice.carrier, t)}</Badge>{" "}
                 <span className="text-muted-foreground">
                   {advice.receivedAt ? format(advice.receivedAt, "HH:mm") : ""}
                 </span>

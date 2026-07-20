@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { getRequiredSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { CARRIER_LABELS } from "@/lib/carriers";
+import { carrierLabel } from "@/lib/carriers";
 import { getT } from "@/lib/i18n/server";
 import { PrintButton } from "@/components/packages/PrintButton";
 import { Button } from "@/components/ui/button";
@@ -74,7 +74,7 @@ export default async function ReceiptPage({
             </p>
             <p>
               <span className="text-muted-foreground">{t.receipt.carrier}: </span>
-              {CARRIER_LABELS[pkg.carrier]}
+              {carrierLabel(pkg.carrier, t)}
             </p>
             {pkg.customerName && (
               <p>
