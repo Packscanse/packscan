@@ -65,6 +65,9 @@ export const da: Messages = {
     MANUAL_ENTRY: "manuel indtastning",
     STATUS_ACTION: "statushandling",
   },
+  carrier: {
+    UNKNOWN: "Ukendt / anden",
+  },
   scan: {
     title: "Scan",
     rapidIntake: "Hurtig modtagelse",

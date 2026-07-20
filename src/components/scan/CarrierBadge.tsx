@@ -2,7 +2,7 @@
 
 import {
   CARRIER_CODES,
-  CARRIER_LABELS,
+  carrierLabel,
   type CarrierCode,
   type Confidence,
   type DetectionResult,
@@ -51,7 +51,7 @@ export function CarrierBadge({
         <SelectContent>
           {ALL_CARRIERS.map((carrier) => (
             <SelectItem key={carrier} value={carrier}>
-              {CARRIER_LABELS[carrier]}
+              {carrierLabel(carrier, t)}
             </SelectItem>
           ))}
         </SelectContent>
@@ -59,13 +59,13 @@ export function CarrierBadge({
       <p className="text-xs text-muted-foreground">
         {top
           ? t.scan.autoDetected
-              .replace("{carrier}", CARRIER_LABELS[top.carrier])
+              .replace("{carrier}", carrierLabel(top.carrier, t))
               .replace("{confidence}", confidenceLabel[top.confidence])
           : t.scan.noCarrierPattern}
         {distinctCarriers.size > 1 &&
           ` ${t.scan.multipleCarriers.replace(
             "{carriers}",
-            [...distinctCarriers].map((c) => CARRIER_LABELS[c]).join(", "),
+            [...distinctCarriers].map((c) => carrierLabel(c, t)).join(", "),
           )}`}
       </p>
     </div>

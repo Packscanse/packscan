@@ -65,6 +65,9 @@ export const de: Messages = {
     MANUAL_ENTRY: "manuelle Eingabe",
     STATUS_ACTION: "Statusaktion",
   },
+  carrier: {
+    UNKNOWN: "Unbekannt / Sonstige",
+  },
   scan: {
     title: "Scannen",
     rapidIntake: "Schnellerfassung",

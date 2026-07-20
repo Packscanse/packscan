@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import type { IdType, ScanInputMethod } from "@prisma/client";
 import {
-  CARRIER_LABELS,
+  carrierLabel,
   detectCarrierCandidates,
   normalizeTrackingNumber,
   type CarrierCode,
@@ -582,7 +582,7 @@ export function ScanScreen({
                     <span className={`font-mono ${!p.scannedOff && !p.done ? "text-muted-foreground" : ""}`}>
                       {p.trackingNumber}
                     </span>
-                    <span className="text-muted-foreground">{CARRIER_LABELS[p.carrier]}</span>
+                    <span className="text-muted-foreground">{carrierLabel(p.carrier, t)}</span>
                     {p.shelfLocation && (
                       <span className="ml-auto font-semibold">{p.shelfLocation}</span>
                     )}

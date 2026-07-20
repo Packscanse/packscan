@@ -65,6 +65,9 @@ export const fi: Messages = {
     MANUAL_ENTRY: "manuaalinen syöttö",
     STATUS_ACTION: "tilatoiminto",
   },
+  carrier: {
+    UNKNOWN: "Tuntematon / muu",
+  },
   scan: {
     title: "Skannaa",
     rapidIntake: "Pikavastaanotto",

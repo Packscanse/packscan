@@ -65,6 +65,9 @@ export const sv: Messages = {
     MANUAL_ENTRY: "manuell inmatning",
     STATUS_ACTION: "statusåtgärd",
   },
+  carrier: {
+    UNKNOWN: "Okänd / annan",
+  },
   scan: {
     title: "Skanna",
     rapidIntake: "Snabbinläsning",

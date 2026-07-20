@@ -65,6 +65,9 @@ export const no: Messages = {
     MANUAL_ENTRY: "manuell inntasting",
     STATUS_ACTION: "statushandling",
   },
+  carrier: {
+    UNKNOWN: "Ukjent / annen",
+  },
   scan: {
     title: "Skann",
     rapidIntake: "Hurtigmottak",

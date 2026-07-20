@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { IdType } from "@prisma/client";
 import {
-  CARRIER_LABELS,
+  carrierLabel,
   getPickupPolicy,
   normalizeTrackingNumber,
   type CarrierCode,
@@ -171,7 +171,7 @@ export function HandoverPanel({
       <div className="grid gap-1 text-sm">
         <p>
           <span className="text-muted-foreground">{t.handover.carrier}: </span>
-          {CARRIER_LABELS[carrier]}
+          {carrierLabel(carrier, t)}
         </p>
         {customerName && (
           <p>
@@ -194,7 +194,7 @@ export function HandoverPanel({
         <div className="grid gap-2">
           <Label htmlFor="presented-code">
             {t.handover.scanCodeLabel
-              .replace("{carrier}", CARRIER_LABELS[carrier])
+              .replace("{carrier}", carrierLabel(carrier, t))
               .replace("{optional}", codeRequired ? "" : t.handover.optionalSuffix)}
           </Label>
           {presentedCode ? (
@@ -341,7 +341,7 @@ export function HandoverPanel({
         </div>
       ) : (
         <p className="text-xs text-muted-foreground">
-          {t.handover.noProxy.replace("{carrier}", CARRIER_LABELS[carrier])}
+          {t.handover.noProxy.replace("{carrier}", carrierLabel(carrier, t))}
         </p>
       )}
 
