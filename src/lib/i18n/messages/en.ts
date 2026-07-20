@@ -143,6 +143,10 @@ export const en = {
     visitDone: "{count} handed over",
     visitLeft: "{count} left on the shelf",
     nextCustomer: "Next customer",
+    addresseeIdChecked: "Addressee's photo ID checked",
+    collectorIdChecked: "Collector's own photo ID checked",
+    needCollectorId: "check the collector's photo ID",
+    needCollectorIdType: "select the collector's ID type",
   },
   packages: {
     title: "Packages",
@@ -192,6 +196,7 @@ export const en = {
     codeValidated: "carrier-app code validated by carrier",
     codeCaptured: "carrier-app code captured",
     idChecked: "ID checked",
+    collectorIdChecked: "collector's ID checked",
     collectedBy: "collected by",
     nothing: "nothing",
     override: "MANAGER OVERRIDE",

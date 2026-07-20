@@ -138,6 +138,10 @@ export const sv: Messages = {
     visitDone: "{count} utlämnade",
     visitLeft: "{count} kvar på hyllan",
     nextCustomer: "Nästa kund",
+    addresseeIdChecked: "Mottagarens foto-ID kontrollerat",
+    collectorIdChecked: "Ombudets eget foto-ID kontrollerat",
+    needCollectorId: "kontrollera ombudets foto-ID",
+    needCollectorIdType: "välj typ för ombudets ID",
   },
   packages: {
     title: "Paket",
@@ -187,6 +191,7 @@ export const sv: Messages = {
     codeValidated: "transportörsapp-kod validerad av transportören",
     codeCaptured: "transportörsapp-kod registrerad",
     idChecked: "ID kontrollerat",
+    collectorIdChecked: "ombudets ID kontrollerat",
     collectedBy: "hämtat av",
     nothing: "inget",
     override: "CHEFSÖVERSTYRNING",

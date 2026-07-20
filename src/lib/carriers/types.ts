@@ -52,6 +52,8 @@ export interface PickupProof {
   codePresented: boolean;
   idChecked: boolean;
   collectorName: string | null;
+  /** Proxy pickup: the collector's own ID was checked alongside the addressee's. */
+  collectorIdChecked: boolean;
   override: boolean;
 }
 

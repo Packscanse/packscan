@@ -309,6 +309,7 @@ export async function advanceStatus(args: {
             codePresented: handoverRecord!.presentedCode !== null,
             idChecked: handoverRecord!.idChecked,
             collectorName: handoverRecord!.collectorName,
+            collectorIdChecked: handoverRecord!.collectorIdChecked,
             override: handoverRecord!.override,
           },
         }

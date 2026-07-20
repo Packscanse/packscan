@@ -138,6 +138,10 @@ export const fi: Messages = {
     visitDone: "{count} luovutettu",
     visitLeft: "{count} jäljellä hyllyssä",
     nextCustomer: "Seuraava asiakas",
+    addresseeIdChecked: "Vastaanottajan kuvallinen henkilötodistus tarkistettu",
+    collectorIdChecked: "Noutajan oma kuvallinen henkilötodistus tarkistettu",
+    needCollectorId: "tarkista noutajan henkilötodistus",
+    needCollectorIdType: "valitse noutajan todistuksen tyyppi",
   },
   packages: {
     title: "Paketit",
@@ -187,6 +191,7 @@ export const fi: Messages = {
     codeValidated: "sovelluskoodi kuljetusyhtiön vahvistama",
     codeCaptured: "sovelluskoodi tallennettu",
     idChecked: "henkilötodistus tarkistettu",
+    collectorIdChecked: "noutajan henkilötodistus tarkistettu",
     collectedBy: "noutanut",
     nothing: "ei mitään",
     override: "ESIHENKILÖN OHITUS",

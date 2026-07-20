@@ -43,6 +43,8 @@ export function HandoverPanel({
   initialIdChecked = false,
   initialIdType = "",
   initialCollectorName = "",
+  initialCollectorIdChecked = false,
+  initialCollectorIdType = "",
   visitTrackings,
   onVisitScan,
 }: {
@@ -61,6 +63,8 @@ export function HandoverPanel({
   initialIdChecked?: boolean;
   initialIdType?: IdType | "";
   initialCollectorName?: string;
+  initialCollectorIdChecked?: boolean;
+  initialCollectorIdType?: IdType | "";
   /** Tracking numbers of the visit's other parcels: scanning one of their
       labels checks it off instead of being mistaken for a pickup code. */
   visitTrackings?: string[];
@@ -76,18 +80,30 @@ export function HandoverPanel({
   const [idType, setIdType] = useState<IdType | "">(initialIdType);
   const [idScanned, setIdScanned] = useState(false);
   const [collectorName, setCollectorName] = useState(initialCollectorName);
+  const [collectorIdChecked, setCollectorIdChecked] = useState(initialCollectorIdChecked);
+  const [collectorIdType, setCollectorIdType] = useState<IdType | "">(initialCollectorIdType);
+  const [collectorIdScanned, setCollectorIdScanned] = useState(false);
   const [override, setOverride] = useState(false);
   const [overrideReason, setOverrideReason] = useState("");
 
   const codeRequired = policy.code === "required";
   const showCode = policy.code !== "none";
+  // Proxy pickup: counter practice puts both documents on the table — the
+  // collector's own ID and the addressee's.
+  const collectorNamed = collectorName.trim().length > 0;
 
+  const idsComplete =
+    (!idChecked || idType !== "") &&
+    (!collectorNamed ||
+      (idChecked && collectorIdChecked && collectorIdType !== ""));
   const policySatisfied =
     (!codeRequired || presentedCode.trim().length > 0) &&
     (policy.idCheck !== "required" || idChecked) &&
-    (!idChecked || idType !== "");
+    idsComplete;
   const satisfied = override
-    ? overrideReason.trim().length >= 3 && (!idChecked || idType !== "")
+    ? overrideReason.trim().length >= 3 &&
+      (!idChecked || idType !== "") &&
+      (!collectorIdChecked || collectorIdType !== "")
     : policySatisfied;
 
   // A disabled button must say why: list exactly what is still missing.
@@ -96,11 +112,18 @@ export function HandoverPanel({
       ? [
           overrideReason.trim().length < 3 ? t.handover.needReason : null,
           idChecked && idType === "" ? t.handover.needIdType : null,
+          collectorIdChecked && collectorIdType === "" ? t.handover.needCollectorIdType : null,
         ]
       : [
           codeRequired && presentedCode.trim().length === 0 ? t.handover.needCode : null,
-          policy.idCheck === "required" && !idChecked ? t.handover.needId : null,
+          (policy.idCheck === "required" || collectorNamed) && !idChecked
+            ? t.handover.needId
+            : null,
           idChecked && idType === "" ? t.handover.needIdType : null,
+          collectorNamed && !collectorIdChecked ? t.handover.needCollectorId : null,
+          collectorNamed && collectorIdChecked && collectorIdType === ""
+            ? t.handover.needCollectorIdType
+            : null,
         ]
   ).filter((item): item is string => item !== null);
 
@@ -111,9 +134,18 @@ export function HandoverPanel({
     if (!raw.trim()) return;
     const scan = classifyHandoverScan(raw);
     if (scan.kind === "ID_DOCUMENT") {
-      setIdChecked(true);
-      setIdType(scan.idType);
-      setIdScanned(true);
+      // Two documents at a proxy pickup: the first scan fills the addressee's
+      // slot, the next fills the collector's. Without a named collector every
+      // scan (re)fills the addressee's.
+      if (idChecked && collectorNamed) {
+        setCollectorIdChecked(true);
+        setCollectorIdType(scan.idType);
+        setCollectorIdScanned(true);
+      } else {
+        setIdChecked(true);
+        setIdType(scan.idType);
+        setIdScanned(true);
+      }
       setScanWarning(null);
       return;
     }
@@ -241,8 +273,8 @@ export function HandoverPanel({
             }}
             className="size-4 accent-primary"
           />
-          {t.handover.idChecked}
-          {policy.idCheck === "required" ? ` ${t.handover.required}` : ""}
+          {collectorNamed ? t.handover.addresseeIdChecked : t.handover.idChecked}
+          {policy.idCheck === "required" || collectorNamed ? ` ${t.handover.required}` : ""}
         </label>
         {idScanned && <p className="text-xs text-muted-foreground">{t.handover.idScanned}</p>}
         {idChecked && (
@@ -270,6 +302,42 @@ export function HandoverPanel({
             onChange={(e) => setCollectorName(e.target.value)}
             placeholder={t.handover.collectorHint}
           />
+          {collectorNamed && (
+            <div className="grid gap-2">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  checked={collectorIdChecked}
+                  onChange={(e) => {
+                    setCollectorIdChecked(e.target.checked);
+                    if (!e.target.checked) setCollectorIdScanned(false);
+                  }}
+                  className="size-4 accent-primary"
+                />
+                {t.handover.collectorIdChecked} {t.handover.required}
+              </label>
+              {collectorIdScanned && (
+                <p className="text-xs text-muted-foreground">{t.handover.idScanned}</p>
+              )}
+              {collectorIdChecked && (
+                <Select
+                  value={collectorIdType}
+                  onValueChange={(v) => setCollectorIdType(v as IdType)}
+                >
+                  <SelectTrigger aria-label={t.handover.idTypePlaceholder} className="w-full">
+                    <SelectValue placeholder={t.handover.idTypePlaceholder} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ID_TYPES.map((idTypeOption) => (
+                      <SelectItem key={idTypeOption} value={idTypeOption}>
+                        {t.idType[idTypeOption]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
         </div>
       ) : (
         <p className="text-xs text-muted-foreground">
@@ -326,6 +394,11 @@ export function HandoverPanel({
               idChecked,
               idType: idChecked && idType !== "" ? idType : undefined,
               collectorName: collectorName.trim() || undefined,
+              collectorIdChecked: collectorNamed && collectorIdChecked ? true : undefined,
+              collectorIdType:
+                collectorNamed && collectorIdChecked && collectorIdType !== ""
+                  ? collectorIdType
+                  : undefined,
               override: override || undefined,
               overrideReason: override ? overrideReason.trim() : undefined,
             })

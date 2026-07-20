@@ -51,6 +51,8 @@ interface Visit {
   idChecked: boolean;
   idType: IdType | "";
   collectorName: string;
+  collectorIdChecked: boolean;
+  collectorIdType: IdType | "";
 }
 
 const SAME_CODE_DEBOUNCE_MS = 2000;
@@ -151,6 +153,8 @@ export function ScanScreen({
       idChecked: false,
       idType: "",
       collectorName: "",
+      collectorIdChecked: false,
+      collectorIdType: "",
     };
   }
 
@@ -232,6 +236,8 @@ export function ScanScreen({
             idChecked: false,
             idType: "",
             collectorName: "",
+            collectorIdChecked: false,
+            collectorIdType: "",
           });
           setHandoverError(null);
           return;
@@ -332,6 +338,8 @@ export function ScanScreen({
         idChecked: verification.idChecked,
         idType: verification.idType ?? "",
         collectorName: verification.collectorName ?? "",
+        collectorIdChecked: verification.collectorIdChecked ?? false,
+        collectorIdType: verification.collectorIdType ?? "",
       });
     });
   }
@@ -606,6 +614,8 @@ export function ScanScreen({
                 initialIdChecked={visit.idChecked}
                 initialIdType={visit.idType}
                 initialCollectorName={visit.collectorName}
+                initialCollectorIdChecked={visit.collectorIdChecked}
+                initialCollectorIdType={visit.collectorIdType}
                 visitTrackings={visit.parcels
                   .filter((p) => p.packageId !== activeParcel.packageId && !p.done)
                   .map((p) => p.trackingNumber)}
