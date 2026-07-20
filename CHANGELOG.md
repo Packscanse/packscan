@@ -3,6 +3,7 @@
 Vad som ändrades och varför — en rad per logisk ändring. (Hur:et finns i git-historiken.)
 
 ## 2026-07-20
+- Flerpaketsutlämning: skannas ett paket i hämtningsflödet listas kundens övriga hyllpaket (matchade på telefon, i andra hand exakt namn) som en checklista — varje paket bockas av genom att dess etikett skannas, ID-kontrollen följer med mellan paketen så den görs en gång per besök, och koder anges per paket där transportörens policy kräver det. Paket som inte skannas av lämnas orörda på hyllan.
 - Hela webben renderar nu i det avsedda typsnittet (Geist) — fontvariabeln var cirkulärt definierad så webbläsaren föll tillbaka på serif.
 - Hämtningsflödet hoppar direkt till utlämningsverifieringen när kollit redan står på hyllan, i stället för att visa ett tomt registreringsformulär; låst bekräftaknapp förklarar nu vad som saknas.
 - Destruktiva knappar (avbryt paket, inaktivera) har fått en enhetlig kantad blek stil så att de aldrig kan förväxlas med butiksfärgade primärknappar; rollbadgar är neutrala så rött förbehålls larm.

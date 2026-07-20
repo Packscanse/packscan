@@ -137,32 +137,26 @@ export async function findPreAdviceMatch(
   };
 }
 
-/**
- * A parcel already on the shelf for this tracking number. The pickup flow
- * uses this to jump straight to handover verification — the clerk should
- * never see a registration form for a parcel the system already knows.
- */
-export async function findAwaitingHandover(
-  storeId: string,
-  rawTrackingNumber: string
-): Promise<HandoverContext | null> {
-  const trackingNumber = normalizeTrackingNumber(rawTrackingNumber);
-  if (trackingNumber.length < 6) return null;
+type AwaitingParcel = {
+  id: string;
+  trackingNumber: string;
+  carrier: import("@prisma/client").Carrier;
+  customerName: string | null;
+  customerPhone: string | null;
+  shelfLocation: string | null;
+};
 
-  const pkg = await prisma.package.findUnique({
-    where: {
-      storeId_trackingNumber_direction: { storeId, trackingNumber, direction: "INBOUND" },
-    },
-    select: {
-      id: true,
-      status: true,
-      trackingNumber: true,
-      carrier: true,
-      customerName: true,
-      shelfLocation: true,
-    },
-  });
-  if (!pkg || pkg.status !== "AWAITING_PICKUP") return null;
+const AWAITING_SELECT = {
+  id: true,
+  status: true,
+  trackingNumber: true,
+  carrier: true,
+  customerName: true,
+  customerPhone: true,
+  shelfLocation: true,
+} as const;
+
+function toHandoverContext(pkg: AwaitingParcel): HandoverContext {
   return {
     packageId: pkg.id,
     trackingNumber: pkg.trackingNumber,
@@ -173,19 +167,87 @@ export async function findAwaitingHandover(
   };
 }
 
+async function awaitingByTracking(
+  storeId: string,
+  rawTrackingNumber: string
+): Promise<AwaitingParcel | null> {
+  const trackingNumber = normalizeTrackingNumber(rawTrackingNumber);
+  if (trackingNumber.length < 6) return null;
+
+  const pkg = await prisma.package.findUnique({
+    where: {
+      storeId_trackingNumber_direction: { storeId, trackingNumber, direction: "INBOUND" },
+    },
+    select: AWAITING_SELECT,
+  });
+  return pkg && pkg.status === "AWAITING_PICKUP" ? pkg : null;
+}
+
+/**
+ * A parcel already on the shelf for this tracking number. The pickup flow
+ * uses this to jump straight to handover verification — the clerk should
+ * never see a registration form for a parcel the system already knows.
+ */
+export async function findAwaitingHandover(
+  storeId: string,
+  rawTrackingNumber: string
+): Promise<HandoverContext | null> {
+  const pkg = await awaitingByTracking(storeId, rawTrackingNumber);
+  return pkg ? toHandoverContext(pkg) : null;
+}
+
+/**
+ * Other parcels waiting for the same customer — the visit checklist that
+ * saves the clerk a second (and third) walk to the shelves. The phone
+ * number is the strong key; an exact name is the fallback. Parcels with
+ * neither are never grouped, so anonymous walk-ins cannot cross-match.
+ */
+export async function findVisitCompanions(
+  storeId: string,
+  primary: Pick<AwaitingParcel, "id" | "customerName" | "customerPhone">
+): Promise<HandoverContext[]> {
+  const matchers: object[] = [];
+  if (primary.customerPhone) matchers.push({ customerPhone: primary.customerPhone });
+  if (primary.customerName) {
+    matchers.push({ customerName: { equals: primary.customerName, mode: "insensitive" } });
+  }
+  if (matchers.length === 0) return [];
+
+  const rows = await prisma.package.findMany({
+    where: {
+      storeId,
+      direction: "INBOUND",
+      status: "AWAITING_PICKUP",
+      id: { not: primary.id },
+      OR: matchers,
+    },
+    select: AWAITING_SELECT,
+    orderBy: { createdAt: "asc" },
+    take: 8,
+  });
+  return rows.map(toHandoverContext);
+}
+
 /** Both lookups a just-captured code needs, in one round-trip. */
 export type ScanLookup = {
   match: PreAdviceMatch | null;
   handover: HandoverContext | null;
+  /** The same customer's other shelf parcels, offered as a visit checklist. */
+  companions: HandoverContext[];
 };
 
 export async function lookupScanContext(
   storeId: string,
   rawTrackingNumber: string
 ): Promise<ScanLookup> {
-  const [match, handover] = await Promise.all([
+  const [match, primary] = await Promise.all([
     findPreAdviceMatch(storeId, rawTrackingNumber),
-    findAwaitingHandover(storeId, rawTrackingNumber),
+    awaitingByTracking(storeId, rawTrackingNumber),
   ]);
-  return { match, handover };
+  const companions = primary ? await findVisitCompanions(storeId, primary) : [];
+  return {
+    match,
+    handover: primary ? toHandoverContext(primary) : null,
+    companions,
+  };
 }

@@ -133,6 +133,11 @@ export const no: Messages = {
     confirm: "Bekreft utlevering",
     saving: "Lagrer…",
     discard: "Forkast",
+    visitParcels: "Kundens pakker",
+    scanToInclude: "Skann etiketten for å ta den med i utleveringen",
+    visitDone: "{count} utlevert",
+    visitLeft: "{count} igjen på hylla",
+    nextCustomer: "Neste kunde",
   },
   packages: {
     title: "Pakker",

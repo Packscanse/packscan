@@ -138,6 +138,11 @@ export const en = {
     confirm: "Confirm handover",
     saving: "Saving…",
     discard: "Discard",
+    visitParcels: "This customer's parcels",
+    scanToInclude: "Scan its label to include it in this pickup",
+    visitDone: "{count} handed over",
+    visitLeft: "{count} left on the shelf",
+    nextCustomer: "Next customer",
   },
   packages: {
     title: "Packages",

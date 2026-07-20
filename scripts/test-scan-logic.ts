@@ -4,6 +4,7 @@
  */
 import { prisma } from "../src/lib/prisma";
 import { advanceStatus, cancelPackage, markForReturn, registerScan } from "../src/lib/packages";
+import { lookupScanContext } from "../src/lib/scan-flow";
 import { dispatchEventsForPackage, requeueEvents } from "../src/lib/carrier-events";
 import { ingestCarrierEvents } from "../src/lib/carrier-ingest";
 import { postnordProvider } from "../src/lib/carriers/rules/postnord";
@@ -517,6 +518,57 @@ async function main() {
     });
     check("race: only one PICKED_UP event written", picked === 1, `got ${picked}`);
   }
+
+  // --- Visit companions: one customer's shelf parcels group by phone
+  //     (strong key) or exact name (case-insensitive); parcels without
+  //     contact info must never cross-match. ---
+  await registerScan({
+    ...base,
+    trackingNumber: `${TEST_PREFIX}VISITA`,
+    flow: "INBOUND_PICKUP",
+    customerName: "Visit Kund",
+    customerPhone: "+46700000042",
+    shelfLocation: "V1",
+  });
+  await registerScan({
+    ...base,
+    carrier: "DHL" as const,
+    trackingNumber: `${TEST_PREFIX}VISITB`,
+    flow: "INBOUND_PICKUP",
+    customerName: "visit kund", // name-only match, different casing
+    shelfLocation: "V2",
+  });
+  await registerScan({
+    ...base,
+    trackingNumber: `${TEST_PREFIX}VISITC`,
+    flow: "INBOUND_PICKUP",
+    customerName: "Annan Mottagare", // phone-only match
+    customerPhone: "+46700000042",
+    shelfLocation: "V3",
+  });
+  await registerScan({
+    ...base,
+    trackingNumber: `${TEST_PREFIX}VISITD`,
+    flow: "INBOUND_PICKUP", // anonymous walk-in: no name, no phone
+  });
+
+  const visitLookup = await lookupScanContext(store.id, `${TEST_PREFIX}VISITA`);
+  check(
+    "visit: scanned parcel resolves to its handover context",
+    visitLookup.handover?.trackingNumber === `${TEST_PREFIX}VISITA`
+  );
+  const companionTrackings = visitLookup.companions.map((c) => c.trackingNumber).sort();
+  check(
+    "visit: phone match and case-insensitive name match group; anonymous stays out",
+    companionTrackings.join(",") === `${TEST_PREFIX}VISITB,${TEST_PREFIX}VISITC`,
+    companionTrackings.join(",") || "none"
+  );
+  const anonLookup = await lookupScanContext(store.id, `${TEST_PREFIX}VISITD`);
+  check(
+    "visit: anonymous parcel gets no companions",
+    anonLookup.handover !== null && anonLookup.companions.length === 0,
+    `got ${anonLookup.companions.length}`
+  );
 
   // Cleanup
   await deleteTestData(store.id);

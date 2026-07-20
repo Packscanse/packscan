@@ -2,7 +2,12 @@
 
 import { useState } from "react";
 import type { IdType } from "@prisma/client";
-import { CARRIER_LABELS, getPickupPolicy, type CarrierCode } from "@/lib/carriers";
+import {
+  CARRIER_LABELS,
+  getPickupPolicy,
+  normalizeTrackingNumber,
+  type CarrierCode,
+} from "@/lib/carriers";
 import { ID_TYPES, classifyHandoverScan, type HandoverInput } from "@/lib/verification";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +40,11 @@ export function HandoverPanel({
   error,
   onConfirm,
   onDiscard,
+  initialIdChecked = false,
+  initialIdType = "",
+  initialCollectorName = "",
+  visitTrackings,
+  onVisitScan,
 }: {
   carrier: CarrierCode;
   customerName: string | null;
@@ -46,6 +56,15 @@ export function HandoverPanel({
   error: string | null;
   onConfirm: (verification: HandoverInput) => void;
   onDiscard?: () => void;
+  /** Carried over from the previous parcel in the same visit — one physical
+      ID check covers every parcel the customer collects. */
+  initialIdChecked?: boolean;
+  initialIdType?: IdType | "";
+  initialCollectorName?: string;
+  /** Tracking numbers of the visit's other parcels: scanning one of their
+      labels checks it off instead of being mistaken for a pickup code. */
+  visitTrackings?: string[];
+  onVisitScan?: (trackingNumber: string) => void;
 }) {
   const t = useT();
   const policy = getPickupPolicy(carrier);
@@ -53,10 +72,10 @@ export function HandoverPanel({
   const [cameraOn, setCameraOn] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [scanWarning, setScanWarning] = useState<string | null>(null);
-  const [idChecked, setIdChecked] = useState(false);
-  const [idType, setIdType] = useState<IdType | "">("");
+  const [idChecked, setIdChecked] = useState(initialIdChecked);
+  const [idType, setIdType] = useState<IdType | "">(initialIdType);
   const [idScanned, setIdScanned] = useState(false);
-  const [collectorName, setCollectorName] = useState("");
+  const [collectorName, setCollectorName] = useState(initialCollectorName);
   const [override, setOverride] = useState(false);
   const [overrideReason, setOverrideReason] = useState("");
 
@@ -96,14 +115,23 @@ export function HandoverPanel({
       setIdType(scan.idType);
       setIdScanned(true);
       setScanWarning(null);
-    } else if (scan.code === trackingNumber) {
+      return;
+    }
+    if (scan.code === trackingNumber) {
       // Habit-scanning the parcel label must never become "evidence".
       setScanWarning(t.handover.ownLabelWarning);
-    } else {
-      setPresentedCode(scan.code);
-      setCameraOn(false);
-      setScanWarning(null);
+      return;
     }
+    // Another parcel in the same visit: check it off the visit list.
+    const normalized = normalizeTrackingNumber(scan.code);
+    if (visitTrackings?.includes(normalized)) {
+      onVisitScan?.(normalized);
+      setScanWarning(null);
+      return;
+    }
+    setPresentedCode(scan.code);
+    setCameraOn(false);
+    setScanWarning(null);
   }
 
   return (
@@ -180,10 +208,18 @@ export function HandoverPanel({
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
-                        captureScan(e.currentTarget.value);
+                        const value = e.currentTarget.value;
+                        // Clear first: ID and visit-label scans keep the
+                        // field mounted, and stale text reads as a code.
+                        e.currentTarget.value = "";
+                        captureScan(value);
                       }
                     }}
-                    onBlur={(e) => captureScan(e.currentTarget.value)}
+                    onBlur={(e) => {
+                      const value = e.currentTarget.value;
+                      e.currentTarget.value = "";
+                      captureScan(value);
+                    }}
                   />
                 </div>
               )}

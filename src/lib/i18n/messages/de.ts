@@ -133,6 +133,11 @@ export const de: Messages = {
     confirm: "Übergabe bestätigen",
     saving: "Wird gespeichert…",
     discard: "Verwerfen",
+    visitParcels: "Pakete dieses Kunden",
+    scanToInclude: "Etikett scannen, um es in diese Abholung aufzunehmen",
+    visitDone: "{count} ausgehändigt",
+    visitLeft: "{count} noch im Regal",
+    nextCustomer: "Nächster Kunde",
   },
   packages: {
     title: "Pakete",
