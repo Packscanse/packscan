@@ -11,7 +11,7 @@ import {
 import { FLOW_DIRECTION, type ScanFlow } from "@/lib/status";
 import type { HandoverInput } from "@/lib/verification";
 import type { HandoverContext } from "@/lib/packages";
-import { lookupPreAdvice, processScan } from "@/actions/scan";
+import { lookupScan, processScan } from "@/actions/scan";
 import type { PreAdviceMatch, ProcessScanResult } from "@/lib/scan-flow";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -162,9 +162,16 @@ export function ScanScreen({
     setResult(null);
     setPreAdviceMatched(false);
     // Announced parcel? Exact carrier + pre-filled recipient, no typing.
-    void lookupPreAdvice(code)
-      .then((match) => {
+    // Already on the shelf? Straight to handover — no registration detour.
+    void lookupScan(code)
+      .then(({ match, handover: existing }) => {
         if (lastDetection.current.code !== code) return;
+        if (existing && flowRef.current === "INBOUND_PICKUP") {
+          setPendingScan(null);
+          setHandover({ ...existing, inputMethod: method });
+          setHandoverError(null);
+          return;
+        }
         if (match) {
           setCarrier(match.carrier);
           setCustomer((prev) => ({

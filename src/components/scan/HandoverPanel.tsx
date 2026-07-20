@@ -71,6 +71,20 @@ export function HandoverPanel({
     ? overrideReason.trim().length >= 3 && (!idChecked || idType !== "")
     : policySatisfied;
 
+  // A disabled button must say why: list exactly what is still missing.
+  const missingItems = (
+    override
+      ? [
+          overrideReason.trim().length < 3 ? t.handover.needReason : null,
+          idChecked && idType === "" ? t.handover.needIdType : null,
+        ]
+      : [
+          codeRequired && presentedCode.trim().length === 0 ? t.handover.needCode : null,
+          policy.idCheck === "required" && !idChecked ? t.handover.needId : null,
+          idChecked && idType === "" ? t.handover.needIdType : null,
+        ]
+  ).filter((item): item is string => item !== null);
+
   // One pipeline for every scan during handover: an ID document only flips
   // the ID-checked flag (its contents are discarded, never stored); anything
   // else is the presented pickup code.
@@ -257,6 +271,12 @@ export function HandoverPanel({
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
+
+      {!satisfied && missingItems.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {t.handover.toComplete.replace("{items}", missingItems.join(" · "))}
+        </p>
+      )}
 
       <div className="flex flex-col gap-2 sm:flex-row">
         <Button

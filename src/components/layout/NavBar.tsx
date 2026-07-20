@@ -60,7 +60,9 @@ export function NavBar({
             <Button asChild variant="ghost" size="sm">
               <Link href="/profile">{session.user.name}</Link>
             </Button>
-            <Badge variant={isAdmin ? "default" : "outline"}>
+            {/* Role is metadata, not an alert: keep it out of the brand/danger
+                palette so red stays reserved for things that need attention. */}
+            <Badge variant={isAdmin ? "secondary" : "outline"}>
               {session.user.role}
             </Badge>
           </div>

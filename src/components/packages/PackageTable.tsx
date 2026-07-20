@@ -83,11 +83,19 @@ export async function PackageTable({ packages }: { packages: Package[] }) {
           </TableHeader>
           <TableBody>
             {packages.map((pkg) => (
-              <TableRow key={pkg.id}>
+              <TableRow key={pkg.id} className="relative cursor-pointer hover:bg-muted/50">
                 <TableCell className="font-mono">
                   <Link href={`/packages/${pkg.id}`} className="underline-offset-2 hover:underline">
                     {pkg.trackingNumber}
                   </Link>
+                  {/* Pointer-only overlay makes the whole row a target; keyboard
+                      and screen readers keep the visible link above. */}
+                  <Link
+                    href={`/packages/${pkg.id}`}
+                    tabIndex={-1}
+                    aria-hidden
+                    className="absolute inset-0"
+                  />
                 </TableCell>
                 <TableCell>{CARRIER_LABELS[pkg.carrier]}</TableCell>
                 <TableCell>

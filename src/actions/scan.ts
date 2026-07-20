@@ -4,15 +4,15 @@ import { revalidatePath } from "next/cache";
 import { getRequiredSession } from "@/lib/session";
 import {
   executeScan,
-  findPreAdviceMatch,
-  type PreAdviceMatch,
+  lookupScanContext,
+  type ScanLookup,
   type ProcessScanResult,
 } from "@/lib/scan-flow";
 import { ScanInputSchema } from "@/lib/validation/scan";
 
 // NOTE: "use server" files may only export async functions (even type
 // re-exports are rejected by the bundler) — import ProcessScanResult and
-// PreAdviceMatch from "@/lib/scan-flow" instead.
+// ScanLookup from "@/lib/scan-flow" instead.
 
 /** Web scan entry: session → executeScan (shared with POST /api/v1/scans). */
 export async function processScan(input: unknown): Promise<ProcessScanResult> {
@@ -38,12 +38,11 @@ export async function processScan(input: unknown): Promise<ProcessScanResult> {
 }
 
 /**
- * Pre-advice match for a just-scanned tracking number: exact carrier
- * attribution and pre-filled recipient details, no typing at intake.
+ * What the scan screen wants to know about a just-captured code: a
+ * pre-advice match (pre-filled intake, exact carrier) and/or a parcel
+ * already awaiting pickup (jump straight to handover verification).
  */
-export async function lookupPreAdvice(
-  rawTrackingNumber: string
-): Promise<PreAdviceMatch | null> {
+export async function lookupScan(rawTrackingNumber: string): Promise<ScanLookup> {
   const session = await getRequiredSession();
-  return findPreAdviceMatch(session.user.storeId, rawTrackingNumber);
+  return lookupScanContext(session.user.storeId, rawTrackingNumber);
 }

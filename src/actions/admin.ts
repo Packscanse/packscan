@@ -15,6 +15,7 @@ import {
   setUserStore,
 } from "@/lib/users";
 import { validateLogo } from "@/lib/branding";
+import { getUserLocale } from "@/lib/i18n/server";
 import {
   CreateStoreSchema,
   CreateUserSchema,
@@ -155,6 +156,9 @@ export async function createUserAction(
         passwordHash: await bcrypt.hash(parsed.data.password, BCRYPT_ROUNDS),
         // Every account gets its 4-digit device-app sign-in number up front.
         loginNumber: await generateLoginNumber(),
+        // New staff start in the language of whoever hires them — far more
+        // likely right than the EN schema default; changeable in Profile.
+        locale: await getUserLocale(),
       },
     });
     revalidatePath("/admin/users");

@@ -15,6 +15,17 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
+/**
+ * Alert messages arrive as one string with the stack-level cause appended
+ * ("… Last error: connect ETIMEDOUT …"). Managers read the headline; the
+ * technical tail collapses behind a disclosure.
+ */
+function splitAlertMessage(message: string): [string, string | null] {
+  const idx = message.indexOf("Last error:");
+  if (idx === -1) return [message, null];
+  return [message.slice(0, idx).trim(), message.slice(idx).trim()];
+}
+
 export default async function AdminOverviewPage() {
   const session = await getRequiredManagerSession();
   // Managers see their own store; chain admins see everything.
@@ -79,30 +90,41 @@ export default async function AdminOverviewPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 text-sm">
-            {openAlerts.map((alert) => (
-              <div key={alert.id} className="flex flex-wrap items-center justify-between gap-2">
-                <p className="min-w-0 flex-1">
-                  <span className="text-muted-foreground">
-                    {format(alert.createdAt, "MMM d, HH:mm")} · {alert.store.code} ·{" "}
-                  </span>
-                  {alert.packageId ? (
-                    <Link
-                      href={`/packages/${alert.packageId}`}
-                      className="underline-offset-2 hover:underline"
-                    >
-                      {alert.message}
-                    </Link>
-                  ) : (
-                    alert.message
-                  )}
-                </p>
-                <form action={resolveAlertAction.bind(null, alert.id)}>
-                  <SubmitButton variant="outline" size="sm" pendingText="Resolving…">
-                    Resolve
-                  </SubmitButton>
-                </form>
-              </div>
-            ))}
+            {openAlerts.map((alert) => {
+              const [headline, techDetail] = splitAlertMessage(alert.message);
+              return (
+                <div key={alert.id} className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p>
+                      <span className="text-muted-foreground">
+                        {format(alert.createdAt, "MMM d, HH:mm")} · {alert.store.code} ·{" "}
+                      </span>
+                      {alert.packageId ? (
+                        <Link
+                          href={`/packages/${alert.packageId}`}
+                          className="underline-offset-2 hover:underline"
+                        >
+                          {headline}
+                        </Link>
+                      ) : (
+                        headline
+                      )}
+                    </p>
+                    {techDetail && (
+                      <details className="mt-1 text-xs text-muted-foreground">
+                        <summary className="cursor-pointer select-none">Technical details</summary>
+                        <p className="mt-1 break-all font-mono">{techDetail}</p>
+                      </details>
+                    )}
+                  </div>
+                  <form action={resolveAlertAction.bind(null, alert.id)}>
+                    <SubmitButton variant="outline" size="sm" pendingText="Resolving…">
+                      Resolve
+                    </SubmitButton>
+                  </form>
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
       )}

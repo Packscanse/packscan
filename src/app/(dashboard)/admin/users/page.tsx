@@ -62,7 +62,7 @@ export default async function AdminUsersPage() {
                     {user.loginNumber ?? "—"}
                   </TableCell>
                   <TableCell className="align-top">
-                    <Badge variant={user.role === "ADMIN" ? "default" : "outline"}>
+                    <Badge variant={user.role === "ADMIN" ? "secondary" : "outline"}>
                       {user.role}
                     </Badge>
                   </TableCell>

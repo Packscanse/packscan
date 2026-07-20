@@ -39,12 +39,10 @@ export default async function RootLayout({
   const lang = LOCALE_TAGS[await getUserLocale()];
 
   return (
-    <html lang={lang}>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-      </body>
+    // Font variables live on <html>: the base layer applies font-sans there,
+    // and a variable defined further down (body) would never reach it.
+    <html lang={lang} className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body className="antialiased">{children}</body>
     </html>
   );
 }
