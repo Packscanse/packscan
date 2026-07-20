@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
 import { BarcodeFormat, DecodeHintType } from "@zxing/library";
+import { useT } from "@/components/i18n/I18nProvider";
 
 /**
  * Continuous camera decode via ZXing. Emits every detected code; the parent
@@ -15,12 +16,15 @@ export function CameraScanner({
   onDetect: (code: string) => void;
   onError: (message: string) => void;
 }) {
+  const t = useT();
   const videoRef = useRef<HTMLVideoElement>(null);
   // Refs keep the effect mount-once while callbacks stay fresh.
   const detectRef = useRef(onDetect);
   detectRef.current = onDetect;
   const errorRef = useRef(onError);
   errorRef.current = onError;
+  const tRef = useRef(t);
+  tRef.current = t;
 
   useEffect(() => {
     const hints = new Map();
@@ -51,9 +55,7 @@ export function CameraScanner({
       .catch((err: unknown) => {
         const name = err instanceof Error ? err.name : "";
         errorRef.current(
-          name === "NotAllowedError"
-            ? "Camera permission denied. Allow camera access, or use the hardware scanner / manual entry."
-            : "Could not start a camera on this device."
+          name === "NotAllowedError" ? tRef.current.scan.cameraDenied : tRef.current.scan.cameraUnavailable
         );
       });
 

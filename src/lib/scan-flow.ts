@@ -1,7 +1,7 @@
 import type { PackageStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { registerScan, type HandoverContext } from "@/lib/packages";
-import { normalizeTrackingNumber } from "@/lib/carriers";
+import { getPickupPolicy, normalizeTrackingNumber } from "@/lib/carriers";
 import type { ScanInput } from "@/lib/validation/scan";
 
 /** The signed-in actor as both the web session and an API token resolve it. */
@@ -135,4 +135,57 @@ export async function findPreAdviceMatch(
     customerPhone: advice.customerPhone,
     customerEmail: advice.customerEmail,
   };
+}
+
+/**
+ * A parcel already on the shelf for this tracking number. The pickup flow
+ * uses this to jump straight to handover verification — the clerk should
+ * never see a registration form for a parcel the system already knows.
+ */
+export async function findAwaitingHandover(
+  storeId: string,
+  rawTrackingNumber: string
+): Promise<HandoverContext | null> {
+  const trackingNumber = normalizeTrackingNumber(rawTrackingNumber);
+  if (trackingNumber.length < 6) return null;
+
+  const pkg = await prisma.package.findUnique({
+    where: {
+      storeId_trackingNumber_direction: { storeId, trackingNumber, direction: "INBOUND" },
+    },
+    select: {
+      id: true,
+      status: true,
+      trackingNumber: true,
+      carrier: true,
+      customerName: true,
+      shelfLocation: true,
+    },
+  });
+  if (!pkg || pkg.status !== "AWAITING_PICKUP") return null;
+  return {
+    packageId: pkg.id,
+    trackingNumber: pkg.trackingNumber,
+    carrier: pkg.carrier,
+    customerName: pkg.customerName,
+    shelfLocation: pkg.shelfLocation,
+    policy: getPickupPolicy(pkg.carrier),
+  };
+}
+
+/** Both lookups a just-captured code needs, in one round-trip. */
+export type ScanLookup = {
+  match: PreAdviceMatch | null;
+  handover: HandoverContext | null;
+};
+
+export async function lookupScanContext(
+  storeId: string,
+  rawTrackingNumber: string
+): Promise<ScanLookup> {
+  const [match, handover] = await Promise.all([
+    findPreAdviceMatch(storeId, rawTrackingNumber),
+    findAwaitingHandover(storeId, rawTrackingNumber),
+  ]);
+  return { match, handover };
 }
