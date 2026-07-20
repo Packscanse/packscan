@@ -35,6 +35,9 @@ async function main() {
       role: "ADMIN",
       storeId: store.id,
       passwordHash: await bcrypt.hash(ADMIN_PASSWORD, 10),
+      // The demo store is Swedish — a Swedish login page followed by an
+      // English app reads as a bug, so the demo accounts match the store.
+      locale: "SV",
     },
   });
 
@@ -49,6 +52,7 @@ async function main() {
       storeId: store.id,
       passwordHash: await bcrypt.hash(CLERK_PASSWORD, 10),
       pinHash: clerkPinHash,
+      locale: "SV",
     },
   });
 
@@ -61,6 +65,7 @@ async function main() {
       role: "MANAGER",
       storeId: store.id,
       passwordHash: await bcrypt.hash("manager-dev-password", 10),
+      locale: "SV",
     },
   });
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import type { Role } from "@prisma/client";
 import {
   resetUserPasswordAction,
@@ -43,9 +43,20 @@ export function UserActions({
   const [pwState, pwAction, pwPending] = useActionState(resetUserPasswordAction, undefined);
   const [pinState, pinAction, pinPending] = useActionState(setUserPinAction, undefined);
   const [storeState, storeAction, storePending] = useActionState(setUserStoreAction, undefined);
+  // Collapsed by default: the table stays scannable, and lifecycle controls
+  // (deactivate, password reset) sit behind a deliberate extra tap.
+  const [open, setOpen] = useState(false);
+
+  if (!open) {
+    return (
+      <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
+        Manage
+      </Button>
+    );
+  }
 
   return (
-    <div className="grid max-w-xs gap-2">
+    <div className="grid max-w-xs gap-2 rounded-md border p-3">
       <form action={roleAction} className="flex items-center gap-2">
         <input type="hidden" name="userId" value={userId} />
         <NativeSelect
@@ -144,6 +155,16 @@ export function UserActions({
         </Button>
       </form>
       <FormStateLine state={pinState} />
+
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={() => setOpen(false)}
+        className="justify-self-start"
+      >
+        Close
+      </Button>
     </div>
   );
 }

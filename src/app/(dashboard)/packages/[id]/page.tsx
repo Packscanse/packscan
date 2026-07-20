@@ -60,6 +60,12 @@ export default async function PackageDetailPage({
 
   return (
     <div className="grid gap-4">
+      <Link
+        href="/packages"
+        className="justify-self-start text-sm text-muted-foreground underline-offset-2 hover:underline"
+      >
+        ← {t.packages.title}
+      </Link>
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="font-mono text-xl font-semibold">{pkg.trackingNumber}</h1>
         <PackageStatusBadge status={pkg.status} />
@@ -140,66 +146,83 @@ export default async function PackageDetailPage({
         canMarkForReturn(pkg.status) ||
         pkg.direction === "OUTBOUND" ||
         canCancel(pkg.status)) && (
-        <div className="flex flex-wrap items-end gap-2">
-          {(next === "HANDED_OFF" || next === "RETURNED_TO_CARRIER") && (
-            <form
-              action={advancePackageAction.bind(null, pkg.id)}
-              className="flex flex-wrap items-end gap-2"
-            >
-              <Input
-                name="courierRef"
-                maxLength={80}
-                placeholder={t.detail.courierRefPlaceholder}
-                aria-label={t.detail.courierRef}
-                className="w-full sm:w-56"
-              />
-              <SubmitButton pendingText={t.detail.updating}>
-                {next === "HANDED_OFF" ? t.detail.markHandedOff : t.detail.markReturned}
-              </SubmitButton>
-            </form>
-          )}
-          {canMarkForReturn(pkg.status) && (
-            <form
-              action={markForReturnAction.bind(null, pkg.id)}
-              className="flex flex-wrap items-end gap-2"
-            >
-              <Input
-                name="reason"
-                maxLength={300}
-                placeholder={t.detail.returnReason}
-                aria-label={t.detail.returnReason}
-                className="w-full sm:w-56"
-              />
-              <SubmitButton variant="secondary" pendingText={t.detail.updating}>
-                {t.detail.markForReturn}
-              </SubmitButton>
-            </form>
-          )}
-          {pkg.direction === "OUTBOUND" && (
-            <Button asChild variant="outline">
-              <Link href={`/packages/${pkg.id}/receipt`}>{t.detail.dropOffReceipt}</Link>
-            </Button>
-          )}
-          {canCancel(pkg.status) && (
-            <form
-              action={cancelPackageAction.bind(null, pkg.id)}
-              className="flex flex-wrap items-end gap-2"
-            >
-              <Input
-                name="reason"
-                required
-                minLength={3}
-                maxLength={300}
-                placeholder={t.detail.cancelReason}
-                aria-label={t.detail.cancelReason}
-                className="w-full sm:w-64"
-              />
-              <SubmitButton variant="destructive" pendingText={t.detail.cancelling}>
-                {t.detail.cancelPackage}
-              </SubmitButton>
-            </form>
-          )}
-        </div>
+        <Card>
+          <CardContent className="grid gap-3 pt-4">
+            {(next === "HANDED_OFF" ||
+              next === "RETURNED_TO_CARRIER" ||
+              canMarkForReturn(pkg.status) ||
+              pkg.direction === "OUTBOUND") && (
+              <div className="flex flex-wrap items-end gap-2">
+                {(next === "HANDED_OFF" || next === "RETURNED_TO_CARRIER") && (
+                  <form
+                    action={advancePackageAction.bind(null, pkg.id)}
+                    className="flex flex-wrap items-end gap-2"
+                  >
+                    <Input
+                      name="courierRef"
+                      maxLength={80}
+                      placeholder={t.detail.courierRefPlaceholder}
+                      aria-label={t.detail.courierRef}
+                      className="w-full sm:w-56"
+                    />
+                    <SubmitButton pendingText={t.detail.updating}>
+                      {next === "HANDED_OFF" ? t.detail.markHandedOff : t.detail.markReturned}
+                    </SubmitButton>
+                  </form>
+                )}
+                {canMarkForReturn(pkg.status) && (
+                  <form
+                    action={markForReturnAction.bind(null, pkg.id)}
+                    className="flex flex-wrap items-end gap-2"
+                  >
+                    <Input
+                      name="reason"
+                      maxLength={300}
+                      placeholder={t.detail.returnReason}
+                      aria-label={t.detail.returnReason}
+                      className="w-full sm:w-56"
+                    />
+                    <SubmitButton variant="secondary" pendingText={t.detail.updating}>
+                      {t.detail.markForReturn}
+                    </SubmitButton>
+                  </form>
+                )}
+                {pkg.direction === "OUTBOUND" && (
+                  <Button asChild variant="outline">
+                    <Link href={`/packages/${pkg.id}/receipt`}>{t.detail.dropOffReceipt}</Link>
+                  </Button>
+                )}
+              </div>
+            )}
+            {/* Cancelling is the one action that ends a parcel's story — it
+                gets its own visually separated row, never a neighbour. */}
+            {canCancel(pkg.status) && (
+              <>
+                {(next === "HANDED_OFF" ||
+                  next === "RETURNED_TO_CARRIER" ||
+                  canMarkForReturn(pkg.status) ||
+                  pkg.direction === "OUTBOUND") && <Separator />}
+                <form
+                  action={cancelPackageAction.bind(null, pkg.id)}
+                  className="flex flex-wrap items-end gap-2"
+                >
+                  <Input
+                    name="reason"
+                    required
+                    minLength={3}
+                    maxLength={300}
+                    placeholder={t.detail.cancelReason}
+                    aria-label={t.detail.cancelReason}
+                    className="w-full sm:w-64"
+                  />
+                  <SubmitButton variant="destructive" pendingText={t.detail.cancelling}>
+                    {t.detail.cancelPackage}
+                  </SubmitButton>
+                </form>
+              </>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {/* Lost-parcel investigation: ask the carrier's tracking API directly.
