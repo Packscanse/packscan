@@ -41,3 +41,19 @@ jobs:
       - run: printf 'DATABASE_URL=%s\n' "$DATABASE_URL" > .env
       - run: npm run test:scan
       - run: npm run test:users
+
+  # The Expo app is its own TS project with its own dependency tree.
+  mobile:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
