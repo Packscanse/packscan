@@ -4,6 +4,7 @@ import {
   CARRIER_CODES,
   carrierLabel,
   type CarrierCode,
+  type Confidence,
   type DetectionResult,
 } from "@/lib/carriers";
 import { useT } from "@/components/i18n/I18nProvider";
@@ -34,10 +35,15 @@ export function CarrierBadge({
   const t = useT();
   const top = candidates[0];
   const distinctCarriers = new Set(candidates.map((c) => c.carrier));
+  const confidenceLabel: Record<Confidence, string> = {
+    high: t.scan.confidenceHigh,
+    medium: t.scan.confidenceMedium,
+    low: t.scan.confidenceLow,
+  };
 
   return (
     <div className="grid gap-2">
-      <Label htmlFor="carrier-select">Carrier</Label>
+      <Label htmlFor="carrier-select">{t.scan.carrier}</Label>
       <Select value={value} onValueChange={(v) => onChange(v as CarrierCode)}>
         <SelectTrigger id="carrier-select" className="w-full">
           <SelectValue />
@@ -52,12 +58,15 @@ export function CarrierBadge({
       </Select>
       <p className="text-xs text-muted-foreground">
         {top
-          ? `Auto-detected ${carrierLabel(top.carrier, t)} (${top.confidence} confidence)`
-          : "No carrier pattern recognized — select manually."}
+          ? t.scan.autoDetected
+              .replace("{carrier}", carrierLabel(top.carrier, t))
+              .replace("{confidence}", confidenceLabel[top.confidence])
+          : t.scan.noCarrierPattern}
         {distinctCarriers.size > 1 &&
-          ` Multiple carriers match this format (${[...distinctCarriers]
-            .map((c) => carrierLabel(c, t))
-            .join(", ")}) — please verify.`}
+          ` ${t.scan.multipleCarriers.replace(
+            "{carriers}",
+            [...distinctCarriers].map((c) => carrierLabel(c, t)).join(", "),
+          )}`}
       </p>
     </div>
   );
