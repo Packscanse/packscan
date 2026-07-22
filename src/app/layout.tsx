@@ -41,7 +41,13 @@ export default async function RootLayout({
   return (
     // Font variables live on <html>: the base layer applies font-sans there,
     // and a variable defined further down (body) would never reach it.
-    <html lang={lang} className={`${geistSans.variable} ${geistMono.variable}`}>
+    // suppressHydrationWarning: CounterMode flips the `dark` class on <html>
+    // before hydration on handhelds (counter mode).
+    <html
+      lang={lang}
+      className={`${geistSans.variable} ${geistMono.variable}`}
+      suppressHydrationWarning
+    >
       <body className="antialiased">{children}</body>
     </html>
   );

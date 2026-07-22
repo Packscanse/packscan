@@ -3,7 +3,7 @@ import type { Messages } from "./en";
 export const de: Messages = {
   nav: {
     scan: "Scannen",
-    packages: "Pakete",
+    packages: "Regal",
     expected: "Erwartet",
     admin: "Admin",
     profile: "Profil",
@@ -154,7 +154,7 @@ export const de: Messages = {
     needCollectorIdType: "Ausweistyp des Abholers wählen",
   },
   packages: {
-    title: "Pakete",
+    title: "Regal",
     overdueButton: "{count} überfällig für Rücksendung ({days}-Tage-Frist)",
     overdueHint: "Länger als {days} Tage auf Abholung gewartet — diese für die Rücksendung markieren.",
     searchPlaceholder: "Sendungsnr., Kunde oder Telefon suchen",

@@ -3,7 +3,7 @@ import type { Messages } from "./en";
 export const no: Messages = {
   nav: {
     scan: "Skann",
-    packages: "Pakker",
+    packages: "Hylla",
     expected: "Forventet",
     admin: "Admin",
     profile: "Profil",
@@ -154,7 +154,7 @@ export const no: Messages = {
     needCollectorIdType: "velg typen for hentepersonens legitimasjon",
   },
   packages: {
-    title: "Pakker",
+    title: "Hylla",
     overdueButton: "{count} forfalt for retur ({days} dagers frist)",
     overdueHint: "Ventet på henting lenger enn {days} dager — merk disse for retur.",
     searchPlaceholder: "Søk sporingsnr., kunde eller telefon",
