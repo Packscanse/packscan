@@ -144,6 +144,7 @@ type AwaitingParcel = {
   customerName: string | null;
   customerPhone: string | null;
   shelfLocation: string | null;
+  createdAt: Date;
 };
 
 const AWAITING_SELECT = {
@@ -154,6 +155,7 @@ const AWAITING_SELECT = {
   customerName: true,
   customerPhone: true,
   shelfLocation: true,
+  createdAt: true,
 } as const;
 
 function toHandoverContext(pkg: AwaitingParcel): HandoverContext {
@@ -163,6 +165,7 @@ function toHandoverContext(pkg: AwaitingParcel): HandoverContext {
     carrier: pkg.carrier,
     customerName: pkg.customerName,
     shelfLocation: pkg.shelfLocation,
+    arrivedAt: pkg.createdAt,
     policy: getPickupPolicy(pkg.carrier),
   };
 }

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import type { IdType, ScanInputMethod } from "@prisma/client";
+import { ArrowLeft, CheckCircle2, PackagePlus, ScanLine } from "lucide-react";
 import {
   carrierLabel,
   detectCarrierCandidates,
@@ -14,16 +15,19 @@ import type { HandoverInput } from "@/lib/verification";
 import type { HandoverContext } from "@/lib/packages";
 import { lookupScan, processScan } from "@/actions/scan";
 import type { PreAdviceMatch, ProcessScanResult } from "@/lib/scan-flow";
+import { formatDuration } from "@/lib/duration";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ShelfChip, ShelfPoster } from "@/components/shelf/ShelfBlock";
 import { CameraScanner } from "./CameraScanner";
 import { HardwareScannerInput } from "./HardwareScannerInput";
 import { FlowPicker } from "./FlowPicker";
 import { CarrierBadge } from "./CarrierBadge";
 import { HandoverPanel } from "./HandoverPanel";
 import { ScanResultCard } from "./ScanResultCard";
+import { DoneScreen } from "./DoneScreen";
 import { useOfflineScanQueue } from "./useOfflineScanQueue";
 import { useT } from "@/components/i18n/I18nProvider";
 
@@ -48,11 +52,20 @@ interface Visit {
   parcels: VisitParcel[];
   activeId: string | null;
   inputMethod: ScanInputMethod;
+  /** When the first label was scanned — the done screen brags about it. */
+  startedAt: number;
   idChecked: boolean;
   idType: IdType | "";
   collectorName: string;
   collectorIdChecked: boolean;
   collectorIdType: IdType | "";
+}
+
+/** The loud success state after the last parcel of a pickup. */
+interface VisitDone {
+  count: number;
+  shelves: string[];
+  seconds: number;
 }
 
 const SAME_CODE_DEBOUNCE_MS = 2000;
@@ -78,6 +91,7 @@ export function ScanScreen({
   const [result, setResult] = useState<ProcessScanResult | null>(null);
   // Set while a pickup's handover verification is in progress.
   const [visit, setVisit] = useState<Visit | null>(null);
+  const [visitDone, setVisitDone] = useState<VisitDone | null>(null);
   const [handoverError, setHandoverError] = useState<string | null>(null);
   // Rapid intake: auto-confirm announced / high-confidence parcels with a
   // sticky batch shelf — for the morning delivery, not the counter chat.
@@ -99,7 +113,7 @@ export function ScanScreen({
 
   // Camera-first on devices where it was used before: reopen it whenever
   // the screen returns to the scanning state. Stopping it turns this off.
-  const scanningNow = !pendingScan && !visit && !result;
+  const scanningNow = !pendingScan && !visit && !visitDone && !result;
   useEffect(() => {
     if (scanningNow && !cameraOn && window.localStorage.getItem(CAMERA_AUTO_KEY) === "1") {
       setCameraError(null);
@@ -150,6 +164,7 @@ export function ScanScreen({
       parcels: [{ ...context, scannedOff: true, done: false }],
       activeId: context.packageId,
       inputMethod: method,
+      startedAt: Date.now(),
       idChecked: false,
       idType: "",
       collectorName: "",
@@ -177,6 +192,17 @@ export function ScanScreen({
   function discardVisit() {
     setVisit(null);
     setHandoverError(null);
+  }
+
+  function finishVisit(parcels: VisitParcel[], startedAt: number) {
+    const doneParcels = parcels.filter((p) => p.done);
+    setVisitDone({
+      count: doneParcels.length,
+      shelves: [...new Set(doneParcels.map((p) => p.shelfLocation).filter((s): s is string => !!s))],
+      seconds: Math.max(1, Math.round((Date.now() - startedAt) / 1000)),
+    });
+    setVisit(null);
+    setResult(null);
   }
 
   function autoConfirm(args: {
@@ -233,6 +259,7 @@ export function ScanScreen({
             ],
             activeId: existing.packageId,
             inputMethod: method,
+            startedAt: Date.now(),
             idChecked: false,
             idType: "",
             collectorName: "",
@@ -320,21 +347,22 @@ export function ScanScreen({
         return;
       }
       setHandoverError(null);
-      if (visit.parcels.length === 1) {
-        // Single-parcel visit: same rhythm as always — result card, next scan.
-        setResult(res);
-        setVisit(null);
-        return;
-      }
-      // Chain to the next scanned-off parcel; the ID check carries over.
       const parcels = visit.parcels.map((p) =>
         p.packageId === active.packageId ? { ...p, done: true } : p
       );
+      const nextActive = parcels.find((p) => p.scannedOff && !p.done)?.packageId ?? null;
+      if (nextActive === null && !parcels.some((p) => !p.done)) {
+        // Every parcel handed over — the loud done screen, then the camera.
+        finishVisit(parcels, visit.startedAt);
+        return;
+      }
+      // Chain to the next scanned-off parcel (or wait armed for more labels);
+      // the ID check carries over.
       setResult(null);
       setVisit({
         ...visit,
         parcels,
-        activeId: parcels.find((p) => p.scannedOff && !p.done)?.packageId ?? null,
+        activeId: nextActive,
         idChecked: verification.idChecked,
         idType: verification.idType ?? "",
         collectorName: verification.collectorName ?? "",
@@ -349,23 +377,19 @@ export function ScanScreen({
   }
 
   // Rapid mode keeps the scanner armed even while a result is showing.
-  const scanning = !pendingScan && !visit && (!result || (rapid && rapidEligible));
+  const scanning = !pendingScan && !visit && !visitDone && (!result || (rapid && rapidEligible));
   const activeParcel = visit?.parcels.find((p) => p.packageId === visit.activeId) ?? null;
+  const doneCount = visit?.parcels.filter((p) => p.done).length ?? 0;
 
   return (
     <div className="grid gap-4">
-      <div className="grid gap-2">
-        <h1 className="text-xl font-semibold">{t.scan.title}</h1>
-        <FlowPicker value={flow} onChange={setFlow} />
-      </div>
-
       {queuedCount > 0 && (
-        <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+        <p className="rounded-[16px] border border-warn/40 bg-warn/10 p-3 text-sm">
           {t.scan.offlineBanner.replace("{count}", String(queuedCount))}
         </p>
       )}
       {syncNotices.length > 0 && (
-        <div className="grid gap-1 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+        <div className="grid gap-1 rounded-[16px] border border-danger-border bg-danger-surface p-3 text-sm">
           <p className="font-medium">{t.scan.syncTitle}</p>
           {syncNotices.map((notice, i) => (
             <p key={i}>{notice}</p>
@@ -376,8 +400,70 @@ export function ScanScreen({
         </div>
       )}
 
-      {rapidEligible && (
-        <div className="flex flex-wrap items-center gap-3 rounded-md border p-3">
+      {scanning && (
+        <div className="grid gap-3">
+          {/* The viewfinder: the whole card is the "start camera" target. */}
+          <div className="relative overflow-hidden rounded-[24px] border bg-card dark:border-border dark:bg-gradient-to-b dark:from-[#1b1b20] dark:to-[#141417]">
+            {/* Hardware scanner: invisible, always armed while scanning. */}
+            <HardwareScannerInput onDetect={(code) => handleCode(code, "HARDWARE_SCANNER")} />
+            {cameraOn ? (
+              <div className="grid gap-3 p-4">
+                <CameraScanner
+                  onDetect={(code) => handleCode(code, "CAMERA")}
+                  onError={(message) => {
+                    setCameraError(message);
+                    setCameraOn(false);
+                  }}
+                />
+                <Button type="button" variant="outline" onClick={stopCamera}>
+                  {t.scan.stopCamera}
+                </Button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={startCamera}
+                className="grid w-full place-items-center gap-6 px-6 py-14 text-center outline-none"
+              >
+                <span className="grid size-44 place-items-center rounded-[20px] border-2 border-dashed border-dash">
+                  <ScanLine className="size-14 text-primary" />
+                </span>
+                <span className="grid gap-1">
+                  <span className="text-xl font-semibold">{t.scan.pointAnywhere}</span>
+                  <span className="text-sm text-muted-foreground">{t.scan.pointAnywhereHint}</span>
+                </span>
+              </button>
+            )}
+            {cameraError && <p className="px-6 pb-4 text-sm text-destructive">{cameraError}</p>}
+          </div>
+
+          <p className="hidden text-xs text-muted-foreground sm:block">{t.scan.scannerReady}</p>
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleCode(manualValue, "MANUAL_ENTRY");
+              setManualValue("");
+            }}
+          >
+            <Input
+              value={manualValue}
+              onChange={(e) => setManualValue(e.target.value)}
+              placeholder={t.scan.manualPlaceholder}
+              aria-label={t.scan.manualPlaceholder}
+              className="rounded-full px-4"
+            />
+            <Button type="submit" variant="outline" disabled={manualValue.trim().length < 6}>
+              {t.scan.use}
+            </Button>
+          </form>
+        </div>
+      )}
+
+      {(scanning || pendingScan) && <FlowPicker value={flow} onChange={setFlow} />}
+
+      {scanning && rapidEligible && (
+        <div className="flex flex-wrap items-center gap-3 rounded-[16px] border p-3">
           <label className="flex items-center gap-2 text-sm font-medium">
             <input
               type="checkbox"
@@ -402,62 +488,6 @@ export function ScanScreen({
         </div>
       )}
 
-      {scanning && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              {t.scan.scanTitlePrefix} {t.flow[flow]}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            {/* Hardware scanner: invisible, always armed while scanning. */}
-            <HardwareScannerInput onDetect={(code) => handleCode(code, "HARDWARE_SCANNER")} />
-            <p className="hidden text-sm text-muted-foreground sm:block">{t.scan.scannerReady}</p>
-
-            {cameraOn ? (
-              <div className="grid gap-2">
-                <CameraScanner
-                  onDetect={(code) => handleCode(code, "CAMERA")}
-                  onError={(message) => {
-                    setCameraError(message);
-                    setCameraOn(false);
-                  }}
-                />
-                <Button type="button" variant="outline" onClick={stopCamera}>
-                  {t.scan.stopCamera}
-                </Button>
-              </div>
-            ) : (
-              <div className="grid gap-2">
-                <Button type="button" size="lg" variant="default" onClick={startCamera} className="sm:h-9">
-                  {t.scan.scanWithCamera}
-                </Button>
-                {cameraError && <p className="text-sm text-destructive">{cameraError}</p>}
-              </div>
-            )}
-
-            <form
-              className="flex gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleCode(manualValue, "MANUAL_ENTRY");
-                setManualValue("");
-              }}
-            >
-              <Input
-                value={manualValue}
-                onChange={(e) => setManualValue(e.target.value)}
-                placeholder={t.scan.manualPlaceholder}
-                aria-label={t.scan.manualPlaceholder}
-              />
-              <Button type="submit" variant="outline" disabled={manualValue.trim().length < 6}>
-                {t.scan.use}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      )}
-
       {pendingScan && (
         <Card>
           <CardHeader>
@@ -476,7 +506,7 @@ export function ScanScreen({
             />
 
             {preAdviceMatched && (
-              <p className="text-sm text-green-700 dark:text-green-400">{t.scan.preAdviceMatched}</p>
+              <p className="text-sm text-ok-strong dark:text-ok">{t.scan.preAdviceMatched}</p>
             )}
 
             {/* Inbound pickup: the recipient. Outbound: the private sender dropping off. */}
@@ -549,59 +579,84 @@ export function ScanScreen({
       )}
 
       {visit && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              {activeParcel ? (
-                <>
-                  {t.handover.confirmTitle}{" "}
-                  <span className="font-mono">{activeParcel.trackingNumber}</span>
-                </>
-              ) : (
-                t.handover.visitDone.replace(
-                  "{count}",
-                  String(visit.parcels.filter((p) => p.done).length)
-                )
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            {visit.parcels.length > 1 && (
-              <div className="grid gap-1 rounded-md border p-3">
-                <p className="text-sm font-medium">{t.handover.visitParcels}</p>
-                {visit.parcels.map((p) => (
-                  <div
-                    key={p.packageId}
-                    className={`flex flex-wrap items-center gap-x-3 gap-y-0.5 rounded-sm px-1.5 py-1 text-sm ${
-                      p.packageId === visit.activeId ? "bg-muted" : ""
-                    }`}
-                  >
-                    <span aria-hidden className={p.done ? "text-green-700 dark:text-green-400" : "text-muted-foreground"}>
-                      {p.done ? "✓" : p.scannedOff ? "●" : "○"}
-                    </span>
-                    <span className={`font-mono ${!p.scannedOff && !p.done ? "text-muted-foreground" : ""}`}>
-                      {p.trackingNumber}
-                    </span>
-                    <span className="text-muted-foreground">{carrierLabel(p.carrier, t)}</span>
-                    {p.shelfLocation && (
-                      <span className="ml-auto font-semibold">{p.shelfLocation}</span>
-                    )}
-                    {p.done ? (
-                      <span className="text-xs text-green-700 dark:text-green-400">
-                        {t.status.PICKED_UP}
+        <div className="grid gap-4">
+          {/* Back to the camera + the raw tracking for reference. */}
+          <div className="flex items-center justify-between gap-2 text-sm">
+            <button
+              type="button"
+              onClick={discardVisit}
+              className="flex items-center gap-1 text-muted-foreground"
+            >
+              <ArrowLeft className="size-4" />
+              {t.scan.title}
+            </button>
+            {activeParcel && (
+              <span className="truncate font-mono text-[13px] text-muted-foreground">
+                {activeParcel.trackingNumber}
+              </span>
+            )}
+          </div>
+
+          {activeParcel ? (
+            <>
+              <ShelfPoster code={activeParcel.shelfLocation} eyebrow={t.handover.shelf}>
+                {activeParcel.customerName && (
+                  <span className="text-lg font-semibold">{activeParcel.customerName}</span>
+                )}
+                <span className="text-[13px] opacity-80">
+                  {carrierLabel(activeParcel.carrier, t)}
+                  {" · "}
+                  {t.handover.onShelfFor.replace(
+                    "{duration}",
+                    formatDuration(Date.now() - new Date(activeParcel.arrivedAt).getTime())
+                  )}
+                  {visit.parcels.length > 1 &&
+                    ` · ${t.handover.parcelOf
+                      .replace("{n}", String(doneCount + 1))
+                      .replace("{count}", String(visit.parcels.length))}`}
+                </span>
+              </ShelfPoster>
+
+              {/* The rest of the visit: scanned-off parcels queue up, the
+                  others invite a label scan (dashed, per the design). */}
+              {visit.parcels
+                .filter((p) => p.packageId !== visit.activeId)
+                .map((p) =>
+                  p.done || p.scannedOff ? (
+                    <div
+                      key={p.packageId}
+                      className="flex items-center gap-3 rounded-[16px] bg-card px-4 py-3 text-sm"
+                    >
+                      <CheckCircle2 className="size-5 shrink-0 text-ok" />
+                      <span className="grid gap-0.5">
+                        <span className="font-medium">
+                          {p.done ? t.status.PICKED_UP : t.handover.included}
+                        </span>
+                        <span className="font-mono text-xs text-muted-foreground">
+                          {p.trackingNumber}
+                        </span>
                       </span>
-                    ) : (
-                      !p.scannedOff && (
-                        <span className="w-full pl-6 text-xs text-muted-foreground">
+                      <ShelfChip code={p.shelfLocation} size="desktop" className="ml-auto" />
+                    </div>
+                  ) : (
+                    <div
+                      key={p.packageId}
+                      className="flex items-center gap-3 rounded-[16px] border border-dashed border-dash px-4 py-3 text-sm"
+                    >
+                      <PackagePlus className="size-5 shrink-0 text-muted-foreground" />
+                      <span className="grid gap-0.5">
+                        <span className="font-medium">
+                          {p.customerName ?? p.trackingNumber}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
                           {t.handover.scanToInclude}
                         </span>
-                      )
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-            {activeParcel ? (
+                      </span>
+                      <ShelfChip code={p.shelfLocation} size="desktop" className="ml-auto" />
+                    </div>
+                  )
+                )}
+
               <HandoverPanel
                 key={activeParcel.packageId}
                 carrier={activeParcel.carrier}
@@ -621,34 +676,53 @@ export function ScanScreen({
                   .map((p) => p.trackingNumber)}
                 onVisitScan={captureVisitParcel}
                 onConfirm={confirmHandover}
-                onDiscard={discardVisit}
+                showContext={false}
               />
-            ) : (
-              <div className="grid gap-3">
-                {/* Still armed: scanning a remaining label resumes the visit. */}
-                <HardwareScannerInput
-                  onDetect={(code) => captureVisitParcel(normalizeTrackingNumber(code))}
-                />
-                {visit.parcels.some((p) => !p.done) && (
-                  <p className="text-sm text-muted-foreground">
-                    {t.handover.visitLeft.replace(
-                      "{count}",
-                      String(visit.parcels.filter((p) => !p.done).length)
-                    )}
-                  </p>
-                )}
-                <Button
-                  type="button"
-                  size="lg"
-                  onClick={discardVisit}
-                  className="justify-self-start sm:h-8 sm:text-sm"
-                >
-                  {t.handover.nextCustomer}
-                </Button>
+            </>
+          ) : (
+            <div className="grid gap-3">
+              {/* Still armed: scanning a remaining label resumes the visit. */}
+              <HardwareScannerInput
+                onDetect={(code) => captureVisitParcel(normalizeTrackingNumber(code))}
+              />
+              <div className="flex items-center gap-3 rounded-[16px] bg-card px-4 py-3 text-sm">
+                <CheckCircle2 className="size-5 shrink-0 text-ok" />
+                <span>{t.handover.visitDone.replace("{count}", String(doneCount))}</span>
               </div>
-            )}
-          </CardContent>
-        </Card>
+              {visit.parcels.some((p) => !p.done) && (
+                <p className="text-sm text-muted-foreground">
+                  {t.handover.visitLeft.replace(
+                    "{count}",
+                    String(visit.parcels.filter((p) => !p.done).length)
+                  )}
+                </p>
+              )}
+              <Button type="button" size="xl" variant="outline" onClick={discardVisit}>
+                {t.handover.nextCustomer}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {visitDone && (
+        <DoneScreen
+          title={
+            visitDone.count > 1
+              ? t.handover.visitDone.replace("{count}", String(visitDone.count))
+              : t.handover.doneTitle
+          }
+          meta={[
+            visitDone.shelves.length > 0
+              ? t.handover.doneShelfFreed.replace("{shelves}", visitDone.shelves.join(", "))
+              : null,
+            t.handover.doneVisitSeconds.replace("{seconds}", String(visitDone.seconds)),
+          ]
+            .filter(Boolean)
+            .join("\n")}
+          actionLabel={t.handover.nextCustomer}
+          onDone={() => setVisitDone(null)}
+        />
       )}
 
       {result && <ScanResultCard result={result} onNext={() => setResult(null)} />}

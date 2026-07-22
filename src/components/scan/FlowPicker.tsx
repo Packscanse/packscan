@@ -1,9 +1,10 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import { SCAN_FLOWS, type ScanFlow } from "@/lib/status";
+import { cn } from "@/lib/utils";
 import { useT } from "@/components/i18n/I18nProvider";
 
+/** Shelf First mode switch: a segmented pill track, active segment in brand. */
 export function FlowPicker({
   value,
   onChange,
@@ -13,18 +14,23 @@ export function FlowPicker({
 }) {
   const t = useT();
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className="grid grid-cols-3 gap-1 rounded-full bg-card p-1">
       {SCAN_FLOWS.map((flow) => (
-        <Button
+        <button
           key={flow}
           type="button"
-          variant={value === flow ? "default" : "outline"}
+          aria-pressed={value === flow}
           onClick={() => onChange(flow)}
-          className="h-12 px-2 sm:h-auto sm:px-3 sm:py-2"
+          className={cn(
+            "h-11 rounded-full px-2 text-sm font-semibold transition-colors",
+            value === flow
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          )}
         >
           <span className="sm:hidden">{t.flowShort[flow]}</span>
           <span className="hidden sm:inline">{t.flow[flow]}</span>
-        </Button>
+        </button>
       ))}
     </div>
   );
