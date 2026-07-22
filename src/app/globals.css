@@ -55,7 +55,8 @@
   --color-danger-border: var(--danger-border);
   --color-danger-foreground: var(--danger-foreground);
   --color-faint: var(--faint);
-  --color-dashed: var(--dashed);
+  /* Named `dash` because `border-dashed` is already the style utility. */
+  --color-dash: var(--dashed);
 }
 
 /* Light admin (desktop): warm paper page, white cards, warm-gray lines. */

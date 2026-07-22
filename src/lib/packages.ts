@@ -31,6 +31,8 @@ export interface HandoverContext {
   carrier: Carrier;
   customerName: string | null;
   shelfLocation: string | null;
+  /** When the parcel went on the shelf — the match screen shows the dwell. */
+  arrivedAt: Date;
   // The carrier's pickup policy travels with the context so API clients
   // (the device app) can gate their UI without duplicating policy tables.
   policy: ReturnType<typeof getPickupPolicy>;
@@ -250,6 +252,7 @@ export async function advanceStatus(args: {
           carrier: pkg.carrier,
           customerName: pkg.customerName,
           shelfLocation: pkg.shelfLocation,
+          arrivedAt: pkg.createdAt,
           policy: getPickupPolicy(pkg.carrier),
         },
       };
