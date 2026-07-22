@@ -9,15 +9,17 @@ export function SubmitButton({
   pendingText = "Working…",
   variant,
   size,
+  className,
 }: {
   children: React.ReactNode;
   pendingText?: string;
   variant?: React.ComponentProps<typeof Button>["variant"];
   size?: React.ComponentProps<typeof Button>["size"];
+  className?: string;
 }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" variant={variant} size={size} disabled={pending}>
+    <Button type="submit" variant={variant} size={size} disabled={pending} className={className}>
       {pending ? pendingText : children}
     </Button>
   );
