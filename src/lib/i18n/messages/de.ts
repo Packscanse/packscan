@@ -10,6 +10,9 @@ export const de: Messages = {
     signOut: "Abmelden",
   },
   auth: {
+    morning: "Guten Morgen.",
+    afternoon: "Guten Tag.",
+    evening: "Guten Abend.",
     subtitle: "Mit Ihrem Mitarbeiterkonto anmelden",
     pin: "PIN",
     password: "Passwort",
