@@ -10,6 +10,9 @@ export const fi: Messages = {
     signOut: "Kirjaudu ulos",
   },
   auth: {
+    morning: "Hyvää huomenta.",
+    afternoon: "Hyvää päivää.",
+    evening: "Hyvää iltaa.",
     subtitle: "Kirjaudu sisään henkilökuntatililläsi",
     pin: "PIN",
     password: "Salasana",

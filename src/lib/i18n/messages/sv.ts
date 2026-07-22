@@ -10,6 +10,9 @@ export const sv: Messages = {
     signOut: "Logga ut",
   },
   auth: {
+    morning: "God morgon.",
+    afternoon: "God eftermiddag.",
+    evening: "God kväll.",
     subtitle: "Logga in med ditt personalkonto",
     pin: "PIN",
     password: "Lösenord",

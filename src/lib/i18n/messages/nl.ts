@@ -10,6 +10,9 @@ export const nl: Messages = {
     signOut: "Afmelden",
   },
   auth: {
+    morning: "Goedemorgen.",
+    afternoon: "Goedemiddag.",
+    evening: "Goedenavond.",
     subtitle: "Meld je aan met je medewerkersaccount",
     pin: "Pincode",
     password: "Wachtwoord",

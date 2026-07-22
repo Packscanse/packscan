@@ -15,6 +15,9 @@ export const en = {
     signOut: "Sign out",
   },
   auth: {
+    morning: "Good morning.",
+    afternoon: "Good afternoon.",
+    evening: "Good evening.",
     subtitle: "Sign in with your staff account",
     pin: "PIN",
     password: "Password",

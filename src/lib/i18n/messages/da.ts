@@ -10,6 +10,9 @@ export const da: Messages = {
     signOut: "Log ud",
   },
   auth: {
+    morning: "Godmorgen.",
+    afternoon: "God eftermiddag.",
+    evening: "Godaften.",
     subtitle: "Log ind med din medarbejderkonto",
     pin: "PIN",
     password: "Adgangskode",
