@@ -3,6 +3,7 @@
 Vad som ändrades och varför — en rad per logisk ändring. (Hur:et finns i git-historiken.)
 
 ## 2026-07-22
+- Inskanning föreslår nu hyllplats: systemet lär sig butikens hyllkoder av vad expediter faktiskt skrivit (fri text, ingen ny datamodell), föreslår platsen med mest ledigt — eller kundens befintliga hylla så att hela besöket hamnar på ett ställe — och visar valet som poster med tryckbara alternativ i stället för ett textfält. Kontaktuppgifter är ett valfritt utfällbart steg (föraviserade paket har dem redan, med grön banner), och klar-skärmen visar hylla, vem som aviseras och hur långt dagens leverans kommit.
 - Hämtningsflödet gjort om enligt Shelf First: sökar-vyn är ett stort mörkt kort med streckad skanningsruta, träffskärmen visar hyllplatsen som poster i butiksfärg (med kundnamn och hur länge paketet väntat), verifieringen är stora tryckrutor styrda av transportörens policy (kod skannas eller skrivs, ID bockas med typ-piller, ombud får egen ruta), och lyckad utlämning firas med en helskärm som visar frigjord hylla och besökstid innan kameran öppnas igen. Chefsöverstyrningen är nedtonad till en textlänk för admins.
 - Ny designgrund enligt Shelf First-handoffen: handenheter kör mörkt disk-läge (desktop förblir ljus, läget följer formfaktorn), ljusa ytor bytte till varm pappersvit palett, knappar och navigering är pillerformade, hyllplatsen visas som färgade hyllkods-chip i paketlistan och "Paket" heter nu "Hyllan" — allt som grund för de omgjorda skann- och hyllvyerna.
 

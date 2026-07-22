@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import type { IdType, ScanInputMethod } from "@prisma/client";
-import { ArrowLeft, CheckCircle2, PackagePlus, ScanLine } from "lucide-react";
+import { ArrowLeft, BadgeCheck, CheckCircle2, PackagePlus, ScanLine } from "lucide-react";
 import {
   carrierLabel,
   detectCarrierCandidates,
@@ -14,8 +14,9 @@ import { FLOW_DIRECTION, type ScanFlow } from "@/lib/status";
 import type { HandoverInput } from "@/lib/verification";
 import type { HandoverContext } from "@/lib/packages";
 import { lookupScan, processScan } from "@/actions/scan";
-import type { PreAdviceMatch, ProcessScanResult } from "@/lib/scan-flow";
+import type { PreAdviceMatch, ProcessScanResult, ShelfSuggestion } from "@/lib/scan-flow";
 import { formatDuration } from "@/lib/duration";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -88,6 +89,9 @@ export function ScanScreen({
   const [manualValue, setManualValue] = useState("");
   const [customer, setCustomer] = useState({ name: "", phone: "", email: "", notes: "", shelf: "" });
   const [preAdviceMatched, setPreAdviceMatched] = useState(false);
+  // Intake: the server's shelf suggestion + the optional contact expander.
+  const [shelfSuggestion, setShelfSuggestion] = useState<ShelfSuggestion | null>(null);
+  const [contactOpen, setContactOpen] = useState(false);
   const [result, setResult] = useState<ProcessScanResult | null>(null);
   // Set while a pickup's handover verification is in progress.
   const [visit, setVisit] = useState<Visit | null>(null);
@@ -244,11 +248,13 @@ export function ScanScreen({
     setCarrier(candidates[0]?.carrier ?? "UNKNOWN");
     setResult(null);
     setPreAdviceMatched(false);
+    setShelfSuggestion(null);
+    setContactOpen(false);
     // Announced parcel? Exact carrier + pre-filled recipient, no typing.
     // Already on the shelf? Straight to handover — no registration detour —
     // together with everything else waiting for the same customer.
     void lookupScan(code)
-      .then(({ match, handover: existing, companions }) => {
+      .then(({ match, handover: existing, companions, shelf }) => {
         if (lastDetection.current.code !== code) return;
         if (existing && flowRef.current === "INBOUND_PICKUP") {
           setPendingScan(null);
@@ -278,6 +284,15 @@ export function ScanScreen({
             email: match.customerEmail ?? prev.email,
           }));
           setPreAdviceMatched(true);
+        }
+        if (FLOW_DIRECTION[flowRef.current] === "INBOUND") {
+          setShelfSuggestion(shelf);
+          // Pre-select the suggestion; the clerk can tap an alternative or
+          // type another code. The sticky rapid batch shelf still wins at
+          // submit time (autoConfirm sends it explicitly).
+          setCustomer((prev) =>
+            prev.shelf ? prev : { ...prev, shelf: shelf.suggested ?? "" }
+          );
         }
         // Rapid intake: no confirm tap for parcels we can trust. Pickups
         // auto-confirm only when pre-advised — otherwise they'd register
@@ -374,12 +389,24 @@ export function ScanScreen({
 
   function discardScan() {
     setPendingScan(null);
+    setShelfSuggestion(null);
+    setContactOpen(false);
   }
 
   // Rapid mode keeps the scanner armed even while a result is showing.
   const scanning = !pendingScan && !visit && !visitDone && (!result || (rapid && rapidEligible));
   const activeParcel = visit?.parcels.find((p) => p.packageId === visit.activeId) ?? null;
   const doneCount = visit?.parcels.filter((p) => p.done).length ?? 0;
+
+  // Why the poster shows what it shows — only captioned while the selection
+  // still is the server's suggestion.
+  const shelfValue = customer.shelf.trim();
+  const shelfReason =
+    shelfSuggestion && shelfValue && shelfValue === shelfSuggestion.suggested
+      ? shelfSuggestion.reason === "customer" && customer.name
+        ? t.scan.suggestedCustomer.replace("{name}", customer.name)
+        : t.scan.suggestedSpace
+      : null;
 
   return (
     <div className="grid gap-4">
@@ -488,7 +515,154 @@ export function ScanScreen({
         </div>
       )}
 
-      {pendingScan && (
+      {pendingScan && FLOW_DIRECTION[flow] === "INBOUND" ? (
+        // Intake, Shelf First style: the answer to "where do I put it?"
+        // fills the screen; contact details are an optional expander.
+        <div className="grid gap-4">
+          <div className="flex items-center justify-between gap-2 text-sm">
+            <button
+              type="button"
+              onClick={discardScan}
+              className="flex items-center gap-1 text-muted-foreground"
+            >
+              <ArrowLeft className="size-4" />
+              {t.scan.title}
+            </button>
+            <span className="truncate font-mono text-[13px] text-muted-foreground">
+              {pendingScan.code}
+            </span>
+          </div>
+
+          {preAdviceMatched && (
+            <div className="flex items-center gap-3 rounded-[16px] bg-card px-4 py-3">
+              <BadgeCheck className="size-6 shrink-0 text-ok" />
+              <span className="grid gap-0.5 text-sm">
+                <span className="font-semibold">
+                  {t.scan.announcedBanner.replace("{name}", customer.name || "—")}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {t.scan.announcedBannerHint.replace("{carrier}", carrierLabel(carrier, t))}
+                </span>
+              </span>
+            </div>
+          )}
+
+          <CarrierBadge
+            candidates={pendingScan.candidates}
+            value={carrier}
+            onChange={setCarrier}
+          />
+
+          <div className="grid gap-2.5">
+            <p className="text-[13px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+              {t.scan.putItOn}
+            </p>
+            <ShelfPoster code={shelfValue || null} eyebrow={t.handover.shelf}>
+              {shelfReason && <span className="text-[13px] opacity-80">{shelfReason}</span>}
+            </ShelfPoster>
+            {shelfSuggestion && shelfSuggestion.alternatives.length > 0 && (
+              <div className="grid grid-cols-4 gap-2">
+                {shelfSuggestion.alternatives.map((shelf) => (
+                  <button
+                    key={shelf}
+                    type="button"
+                    aria-pressed={shelfValue === shelf}
+                    onClick={() => setCustomer({ ...customer, shelf })}
+                    className={cn(
+                      "h-[52px] truncate rounded-[14px] border px-1 text-lg font-bold transition-colors",
+                      shelfValue === shelf
+                        ? "border-2 border-primary bg-primary/25"
+                        : "border-border bg-card text-muted-foreground"
+                    )}
+                  >
+                    {shelf}
+                  </button>
+                ))}
+              </div>
+            )}
+            <Input
+              value={customer.shelf}
+              onChange={(e) => setCustomer({ ...customer, shelf: e.target.value })}
+              placeholder={t.scan.otherShelf}
+              aria-label={t.scan.shelfLocation}
+              className="rounded-full px-4"
+            />
+          </div>
+
+          {flow === "INBOUND_PICKUP" &&
+            (contactOpen ? (
+              <div className="grid gap-3 rounded-[16px] bg-card p-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="customer-name">{t.scan.customerName}</Label>
+                  <Input
+                    id="customer-name"
+                    value={customer.name}
+                    onChange={(e) => setCustomer({ ...customer, name: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="customer-phone">{t.scan.customerPhone}</Label>
+                  <Input
+                    id="customer-phone"
+                    type="tel"
+                    value={customer.phone}
+                    onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="customer-email">{t.scan.customerEmail}</Label>
+                  <Input
+                    id="customer-email"
+                    type="email"
+                    value={customer.email}
+                    onChange={(e) => setCustomer({ ...customer, email: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="customer-notes">{t.scan.notes}</Label>
+                  <Input
+                    id="customer-notes"
+                    value={customer.notes}
+                    onChange={(e) => setCustomer({ ...customer, notes: e.target.value })}
+                  />
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setContactOpen(true)}
+                className="justify-self-start text-[13px] text-muted-foreground underline underline-offset-4"
+              >
+                {t.scan.addContact}
+              </button>
+            ))}
+
+          <Button
+            type="button"
+            size="xl"
+            onClick={confirmScan}
+            disabled={isPending}
+            className="w-full"
+          >
+            {isPending
+              ? t.scan.saving
+              : shelfValue
+                ? t.scan.onShelfNext.replace("{shelf}", shelfValue)
+                : t.scan.confirmScan}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={discardScan}
+            disabled={isPending}
+            className="justify-self-center text-muted-foreground"
+          >
+            {t.scan.discard}
+          </Button>
+        </div>
+      ) : pendingScan ? (
+        // Outbound drop-off keeps the compact confirm card (sender details,
+        // no shelf).
         <Card>
           <CardHeader>
             <CardTitle className="text-base">{t.scan.confirmScan}</CardTitle>
@@ -505,66 +679,42 @@ export function ScanScreen({
               onChange={setCarrier}
             />
 
-            {preAdviceMatched && (
-              <p className="text-sm text-ok-strong dark:text-ok">{t.scan.preAdviceMatched}</p>
-            )}
-
-            {/* Inbound pickup: the recipient. Outbound: the private sender dropping off. */}
-            {(flow === "INBOUND_PICKUP" || flow === "OUTBOUND_HANDOFF") && (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="customer-name">
-                    {flow === "OUTBOUND_HANDOFF" ? t.scan.senderName : t.scan.customerName}
-                  </Label>
-                  <Input
-                    id="customer-name"
-                    value={customer.name}
-                    onChange={(e) => setCustomer({ ...customer, name: e.target.value })}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="customer-phone">
-                    {flow === "OUTBOUND_HANDOFF" ? t.scan.senderPhone : t.scan.customerPhone}
-                  </Label>
-                  <Input
-                    id="customer-phone"
-                    type="tel"
-                    value={customer.phone}
-                    onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="customer-email">
-                    {flow === "OUTBOUND_HANDOFF" ? t.scan.senderEmail : t.scan.customerEmail}
-                  </Label>
-                  <Input
-                    id="customer-email"
-                    type="email"
-                    value={customer.email}
-                    onChange={(e) => setCustomer({ ...customer, email: e.target.value })}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="customer-notes">{t.scan.notes}</Label>
-                  <Input
-                    id="customer-notes"
-                    value={customer.notes}
-                    onChange={(e) => setCustomer({ ...customer, notes: e.target.value })}
-                  />
-                </div>
-                {flow === "INBOUND_PICKUP" && (
-                  <div className="grid gap-2">
-                    <Label htmlFor="shelf-location">{t.scan.shelfLocation}</Label>
-                    <Input
-                      id="shelf-location"
-                      value={customer.shelf}
-                      onChange={(e) => setCustomer({ ...customer, shelf: e.target.value })}
-                      placeholder="e.g. A3"
-                    />
-                  </div>
-                )}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="customer-name">{t.scan.senderName}</Label>
+                <Input
+                  id="customer-name"
+                  value={customer.name}
+                  onChange={(e) => setCustomer({ ...customer, name: e.target.value })}
+                />
               </div>
-            )}
+              <div className="grid gap-2">
+                <Label htmlFor="customer-phone">{t.scan.senderPhone}</Label>
+                <Input
+                  id="customer-phone"
+                  type="tel"
+                  value={customer.phone}
+                  onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="customer-email">{t.scan.senderEmail}</Label>
+                <Input
+                  id="customer-email"
+                  type="email"
+                  value={customer.email}
+                  onChange={(e) => setCustomer({ ...customer, email: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="customer-notes">{t.scan.notes}</Label>
+                <Input
+                  id="customer-notes"
+                  value={customer.notes}
+                  onChange={(e) => setCustomer({ ...customer, notes: e.target.value })}
+                />
+              </div>
+            </div>
 
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button type="button" size="lg" onClick={confirmScan} disabled={isPending} className="sm:h-8 sm:text-sm">
@@ -576,7 +726,7 @@ export function ScanScreen({
             </div>
           </CardContent>
         </Card>
-      )}
+      ) : null}
 
       {visit && (
         <div className="grid gap-4">
@@ -725,7 +875,34 @@ export function ScanScreen({
         />
       )}
 
-      {result && <ScanResultCard result={result} onNext={() => setResult(null)} />}
+      {result &&
+        (result.ok && result.kind === "created" && result.direction === "INBOUND" && !rapid ? (
+          // Intake done, Shelf First style. Rapid mode keeps the compact
+          // result card so the armed camera stays the main event.
+          <DoneScreen
+            title={
+              result.shelfLocation
+                ? t.scan.doneOnShelf.replace("{shelf}", result.shelfLocation)
+                : t.scan.registered
+            }
+            meta={[
+              result.notified && result.customerName
+                ? t.scan.doneNotified.replace("{name}", result.customerName)
+                : null,
+              result.delivery
+                ? t.scan.doneProgress
+                    .replace("{received}", String(result.delivery.received))
+                    .replace("{announced}", String(result.delivery.announced))
+                : null,
+            ]
+              .filter(Boolean)
+              .join("\n")}
+            actionLabel={t.scan.keepScanning}
+            onDone={() => setResult(null)}
+          />
+        ) : (
+          <ScanResultCard result={result} onNext={() => setResult(null)} />
+        ))}
     </div>
   );
 }
