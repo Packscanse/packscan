@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LogOut } from "lucide-react";
 import type { Session } from "next-auth";
 import { logoutAction } from "@/actions/auth";
 import { hasManagementAccess } from "@/lib/session";
@@ -62,7 +63,24 @@ export function NavBar({
             {initials(session.user.name ?? "")}
           </Link>
           <form action={logoutAction}>
-            <Button type="submit" variant="ghost" size="sm" className="text-muted-foreground">
+            {/* Icon-only on handhelds — the text button doesn't fit next to
+                logo + store + avatar on 375px. */}
+            <Button
+              type="submit"
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground sm:hidden"
+              aria-label={nav.signOut}
+              title={nav.signOut}
+            >
+              <LogOut />
+            </Button>
+            <Button
+              type="submit"
+              variant="ghost"
+              size="sm"
+              className="hidden text-muted-foreground sm:inline-flex"
+            >
               {nav.signOut}
             </Button>
           </form>

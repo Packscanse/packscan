@@ -1,24 +1,39 @@
+"use client";
+
+import { useEffect } from "react";
+
 /**
  * Counter mode: the Shelf First design is dark on handhelds and light on
- * desktop — the mode follows form factor, not a user setting. A tiny inline
- * script toggles the `.dark` class from a media query so the right palette
- * is applied before first paint (no light flash on phones) and live when a
- * window is resized across the breakpoint.
+ * desktop — the mode follows form factor, not a user setting. The breakpoint
+ * mirrors Tailwind's `sm` (640px), the same line where the bottom tab bar
+ * swaps for the top nav.
  *
- * The breakpoint mirrors Tailwind's `sm` (640px) — the same line where the
- * bottom tab bar swaps for the top nav. The root layout suppresses the
- * hydration warning this class causes on <html>.
+ * Two mechanisms cooperate:
+ * - An inline script toggles `.dark` during HTML parsing, so full page loads
+ *   paint in the right palette from the first frame (no light flash).
+ *   Scripts inserted by client-side navigation never execute — that case is
+ *   covered by the effect below.
+ * - A client effect re-applies the class after hydration/navigation and owns
+ *   the live media-query listener for window resizes.
+ *
+ * The root layout suppresses the hydration warning this class causes on
+ * <html>.
  */
-const COUNTER_MODE_SCRIPT = [
-  "(function(){",
-  "if(window.__psCounterMode)return;window.__psCounterMode=1;",
-  'var m=window.matchMedia("(max-width: 639px)");',
-  'var a=function(){document.documentElement.classList.toggle("dark",m.matches);};',
-  "a();",
-  'm.addEventListener("change",a);',
-  "})();",
-].join("");
+const QUERY = "(max-width: 639px)";
+
+const PRE_PAINT_SCRIPT =
+  `document.documentElement.classList.toggle("dark",` +
+  `window.matchMedia("${QUERY}").matches);`;
 
 export function CounterMode() {
-  return <script dangerouslySetInnerHTML={{ __html: COUNTER_MODE_SCRIPT }} />;
+  useEffect(() => {
+    const media = window.matchMedia(QUERY);
+    const apply = () =>
+      document.documentElement.classList.toggle("dark", media.matches);
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, []);
+
+  return <script dangerouslySetInnerHTML={{ __html: PRE_PAINT_SCRIPT }} />;
 }
