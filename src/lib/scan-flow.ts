@@ -23,6 +23,12 @@ export type ProcessScanResult =
       status: PackageStatus;
       fromStatus?: PackageStatus;
       direction: "INBOUND" | "OUTBOUND";
+      // Intake done-screen extras (Shelf First): where it went, who gets the
+      // SMS, and how far through today's announced delivery the store is.
+      shelfLocation?: string | null;
+      customerName?: string | null;
+      notified?: boolean;
+      delivery?: { received: number; announced: number };
     }
   // Pickup completion needs the handover step: resubmit with `verification`.
   | { ok: false; code: "VERIFICATION_REQUIRED"; error: string; handover: HandoverContext }
@@ -88,6 +94,25 @@ export async function executeScan(actor: ScanActor, input: ScanInput): Promise<P
     return { ok: false, error: outcome.error };
   }
 
+  // The intake done screen brags about delivery progress: pre-advised
+  // parcels received today vs. everything announced for today.
+  let delivery: { received: number; announced: number } | undefined;
+  if (outcome.kind === "created" && outcome.package.direction === "INBOUND") {
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+    const [received, stillAnnounced] = await Promise.all([
+      prisma.preAdvice.count({
+        where: { storeId: actor.storeId, receivedAt: { gte: dayStart } },
+      }),
+      prisma.preAdvice.count({
+        where: { storeId: actor.storeId, status: "ANNOUNCED" },
+      }),
+    ]);
+    if (received + stillAnnounced > 0) {
+      delivery = { received, announced: received + stillAnnounced };
+    }
+  }
+
   return {
     ok: true,
     kind: outcome.kind,
@@ -97,6 +122,12 @@ export async function executeScan(actor: ScanActor, input: ScanInput): Promise<P
     status: outcome.package.status,
     fromStatus: outcome.kind === "transitioned" ? outcome.fromStatus : undefined,
     direction: outcome.package.direction,
+    shelfLocation: outcome.package.shelfLocation,
+    customerName: outcome.package.customerName,
+    notified:
+      outcome.package.status === "AWAITING_PICKUP" &&
+      Boolean(outcome.package.customerPhone || outcome.package.customerEmail),
+    delivery,
   };
 }
 
@@ -231,12 +262,93 @@ export async function findVisitCompanions(
   return rows.map(toHandoverContext);
 }
 
+/**
+ * Where to put a just-scanned parcel. The store's shelf vocabulary is what
+ * clerks actually typed in the last weeks (there is no shelf entity —
+ * `shelfLocation` is free text), ranked by current load; the customer's own
+ * shelf wins outright so one walk covers the whole visit.
+ */
+export type ShelfSuggestion = {
+  suggested: string | null;
+  /** Why the top pick: the customer already has a parcel there, or space. */
+  reason: "customer" | "space" | null;
+  /** Tap-tiles for the intake screen; the suggestion comes first. */
+  alternatives: string[];
+};
+
+const SHELF_VOCAB_DAYS = 30;
+const SHELF_ALTERNATIVES = 4;
+
+export async function suggestShelf(
+  storeId: string,
+  customer: { name?: string | null; phone?: string | null }
+): Promise<ShelfSuggestion> {
+  const since = new Date(Date.now() - SHELF_VOCAB_DAYS * 24 * 3_600_000);
+  const matchers: object[] = [];
+  if (customer.phone) matchers.push({ customerPhone: customer.phone });
+  if (customer.name) {
+    matchers.push({ customerName: { equals: customer.name, mode: "insensitive" } });
+  }
+
+  const [vocab, occupied, existing] = await Promise.all([
+    prisma.package.groupBy({
+      by: ["shelfLocation"],
+      where: { storeId, shelfLocation: { not: null }, createdAt: { gte: since } },
+    }),
+    prisma.package.groupBy({
+      by: ["shelfLocation"],
+      where: { storeId, status: "AWAITING_PICKUP", shelfLocation: { not: null } },
+      _count: { _all: true },
+    }),
+    matchers.length > 0
+      ? prisma.package.findFirst({
+          where: {
+            storeId,
+            direction: "INBOUND",
+            status: "AWAITING_PICKUP",
+            shelfLocation: { not: null },
+            OR: matchers,
+          },
+          select: { shelfLocation: true },
+          orderBy: { createdAt: "desc" },
+        })
+      : Promise.resolve(null),
+  ]);
+
+  const load = new Map<string, number>();
+  for (const row of occupied) {
+    if (row.shelfLocation) load.set(row.shelfLocation, row._count._all);
+  }
+  const known = new Set<string>(load.keys());
+  for (const row of vocab) {
+    if (row.shelfLocation) known.add(row.shelfLocation);
+  }
+  const ranked = [...known].sort(
+    (a, b) =>
+      (load.get(a) ?? 0) - (load.get(b) ?? 0) ||
+      a.localeCompare(b, undefined, { numeric: true })
+  );
+
+  const customerShelf = existing?.shelfLocation ?? null;
+  const suggested = customerShelf ?? ranked[0] ?? null;
+  const alternatives = suggested
+    ? [suggested, ...ranked.filter((shelf) => shelf !== suggested)].slice(0, SHELF_ALTERNATIVES)
+    : ranked.slice(0, SHELF_ALTERNATIVES);
+  return {
+    suggested,
+    reason: customerShelf ? "customer" : suggested ? "space" : null,
+    alternatives,
+  };
+}
+
 /** Both lookups a just-captured code needs, in one round-trip. */
 export type ScanLookup = {
   match: PreAdviceMatch | null;
   handover: HandoverContext | null;
   /** The same customer's other shelf parcels, offered as a visit checklist. */
   companions: HandoverContext[];
+  /** Where to put it, for the intake flows. */
+  shelf: ShelfSuggestion;
 };
 
 export async function lookupScanContext(
@@ -247,10 +359,17 @@ export async function lookupScanContext(
     findPreAdviceMatch(storeId, rawTrackingNumber),
     awaitingByTracking(storeId, rawTrackingNumber),
   ]);
-  const companions = primary ? await findVisitCompanions(storeId, primary) : [];
+  const [companions, shelf] = await Promise.all([
+    primary ? findVisitCompanions(storeId, primary) : Promise.resolve([]),
+    suggestShelf(storeId, {
+      name: match?.customerName,
+      phone: match?.customerPhone,
+    }),
+  ]);
   return {
     match,
     handover: primary ? toHandoverContext(primary) : null,
     companions,
+    shelf,
   };
 }
