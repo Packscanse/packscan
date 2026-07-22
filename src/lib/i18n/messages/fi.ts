@@ -286,7 +286,12 @@ export const fi: Messages = {
       "Tämä kuitti vahvistaa, että paketti vastaanotettiin yllä mainitussa noutopisteessä. Seuranta ja toimitus tapahtuvat kuljetusyhtiön ehtojen mukaisesti.",
   },
   expected: {
-    title: "Odotetut paketit",
+    title: "Päivän toimitus",
+    meta: "{announced} ilmoitettu · {received} jo sisällä",
+    stillOnTruck: "Vielä kuormassa ({count})",
+    vanUsually: "auto tulee yleensä ~{time}",
+    importHint:
+      "Liitä rivejä tai CSV — nimet ja puhelinnumerot yhdistetään, joten tekstiviesti lähtee heti kun paketti skannataan.",
     announced: "Ilmoitettu, ei vielä vastaanotettu ({count})",
     nothingOutstanding: "Ei avoimia — jokainen ilmoitettu paketti on skannattu sisään.",
     colTracking: "Seurantanumero",

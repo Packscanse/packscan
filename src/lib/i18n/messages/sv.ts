@@ -286,7 +286,12 @@ export const sv: Messages = {
       "Detta kvitto bekräftar att paketet tagits emot på ovanstående ombud. Spårning och leverans följer transportörens villkor.",
   },
   expected: {
-    title: "Förväntade paket",
+    title: "Dagens bil",
+    meta: "{announced} aviserade · {received} redan inne",
+    stillOnTruck: "Kvar på bilen ({count})",
+    vanUsually: "bilen kommer oftast ~{time}",
+    importHint:
+      "Klistra in rader eller en CSV — namn och telefon matchas så att SMS:et går ut i samma stund som paketet skannas in.",
     announced: "Aviserade, ej mottagna ({count})",
     nothingOutstanding: "Inget utestående — alla aviserade paket har skannats in.",
     colTracking: "Spårningsnummer",

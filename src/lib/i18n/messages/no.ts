@@ -286,7 +286,12 @@ export const no: Messages = {
       "Denne kvitteringen bekrefter at pakken ble mottatt hos utleveringsstedet ovenfor. Sporing og levering følger transportørens vilkår.",
   },
   expected: {
-    title: "Forventede pakker",
+    title: "Dagens bil",
+    meta: "{announced} varslet · {received} allerede inne",
+    stillOnTruck: "Fortsatt på bilen ({count})",
+    vanUsually: "bilen kommer vanligvis ~{time}",
+    importHint:
+      "Lim inn linjer eller en CSV — navn og telefon matches slik at SMS-en sendes i det øyeblikket pakken skannes inn.",
     announced: "Varslet, ikke mottatt ennå ({count})",
     nothingOutstanding: "Ingenting utestående — alle varslede pakker er skannet inn.",
     colTracking: "Sporingsnummer",

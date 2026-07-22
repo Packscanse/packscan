@@ -286,7 +286,12 @@ export const nl: Messages = {
       "Dit bewijs bevestigt dat het pakket is aangenomen bij het bovenstaande servicepunt. Tracking en bezorging blijven onderworpen aan de voorwaarden van de vervoerder.",
   },
   expected: {
-    title: "Verwachte pakketten",
+    title: "De wagen van vandaag",
+    meta: "{announced} aangemeld · {received} al binnen",
+    stillOnTruck: "Nog in de wagen ({count})",
+    vanUsually: "de wagen komt meestal ~{time}",
+    importHint:
+      "Plak regels of een CSV — namen en telefoonnummers worden gematcht zodat de sms uitgaat zodra het pakket wordt gescand.",
     announced: "Aangemeld, nog niet ontvangen ({count})",
     nothingOutstanding: "Niets openstaand — elk aangemeld pakket is gescand.",
     colTracking: "Track & trace-nummer",
