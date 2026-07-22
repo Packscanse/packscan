@@ -2,6 +2,9 @@
 
 Vad som ändrades och varför — en rad per logisk ändring. (Hur:et finns i git-historiken.)
 
+## 2026-07-22
+- Ny designgrund enligt Shelf First-handoffen: handenheter kör mörkt disk-läge (desktop förblir ljus, läget följer formfaktorn), ljusa ytor bytte till varm pappersvit palett, knappar och navigering är pillerformade, hyllplatsen visas som färgade hyllkods-chip i paketlistan och "Paket" heter nu "Hyllan" — allt som grund för de omgjorda skann- och hyllvyerna.
+
 ## 2026-07-20
 - Ombudshämtning kräver nu båda id-handlingarna, som vid disken i praktiken: anges ett ombud måste både mottagarens och ombudets foto-ID kontrolleras (skannas eller bockas i) innan utlämningen kan bekräftas, och spårloggen skiljer på vems ID som kontrollerades. Endast typ och faktum sparas — aldrig handlingarnas innehåll.
 - Flerpaketsutlämning: skannas ett paket i hämtningsflödet listas kundens övriga hyllpaket (matchade på telefon, i andra hand exakt namn) som en checklista — varje paket bockas av genom att dess etikett skannas, ID-kontrollen följer med mellan paketen så den görs en gång per besök, och koder anges per paket där transportörens policy kräver det. Paket som inte skannas av lämnas orörda på hyllan.

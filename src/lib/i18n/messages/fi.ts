@@ -3,7 +3,7 @@ import type { Messages } from "./en";
 export const fi: Messages = {
   nav: {
     scan: "Skannaa",
-    packages: "Paketit",
+    packages: "Hylly",
     expected: "Odotetut",
     admin: "Hallinta",
     profile: "Profiili",
@@ -154,7 +154,7 @@ export const fi: Messages = {
     needCollectorIdType: "valitse noutajan todistuksen tyyppi",
   },
   packages: {
-    title: "Paketit",
+    title: "Hylly",
     overdueButton: "{count} myöhässä palautukseen ({days} päivän määräaika)",
     overdueHint: "Odottanut noutoa yli {days} päivää — merkitse nämä palautettaviksi.",
     searchPlaceholder: "Hae seurantanro, asiakas tai puhelin",

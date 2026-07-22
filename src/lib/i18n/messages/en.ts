@@ -8,7 +8,7 @@
 export const en = {
   nav: {
     scan: "Scan",
-    packages: "Packages",
+    packages: "Shelf",
     expected: "Expected",
     admin: "Admin",
     profile: "Profile",
@@ -160,7 +160,7 @@ export const en = {
     needCollectorIdType: "select the collector's ID type",
   },
   packages: {
-    title: "Packages",
+    title: "Shelf",
     overdueButton: "{count} overdue for return ({days}-day deadline)",
     overdueHint: "Awaiting pickup longer than {days} days — mark these for return.",
     searchPlaceholder: "Search tracking #, customer or phone",

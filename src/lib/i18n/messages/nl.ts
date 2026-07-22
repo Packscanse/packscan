@@ -3,7 +3,7 @@ import type { Messages } from "./en";
 export const nl: Messages = {
   nav: {
     scan: "Scannen",
-    packages: "Pakketten",
+    packages: "Schap",
     expected: "Verwacht",
     admin: "Beheer",
     profile: "Profiel",
@@ -154,7 +154,7 @@ export const nl: Messages = {
     needCollectorIdType: "kies het type identiteitsbewijs van de afhaler",
   },
   packages: {
-    title: "Pakketten",
+    title: "Schap",
     overdueButton: "{count} over tijd voor retour ({days}-dagentermijn)",
     overdueHint: "Langer dan {days} dagen wachtend op afhalen — markeer deze voor retour.",
     searchPlaceholder: "Zoek op tracknummer, klant of telefoon",

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { brandStyle } from "@/lib/branding";
 import { getT } from "@/lib/i18n/server";
 import { I18nProvider } from "@/components/i18n/I18nProvider";
+import { CounterMode } from "@/components/layout/CounterMode";
 import { NavBar } from "@/components/layout/NavBar";
 import { MobileNav } from "@/components/layout/MobileNav";
 
@@ -20,9 +21,10 @@ export default async function DashboardLayout({
 
   return (
     // Chain branding: the store's color becomes the primary color for
-    // everything inside — buttons, active tabs, focus rings.
+    // everything inside — buttons, active pills, shelf blocks, focus rings.
     <I18nProvider messages={t}>
-      <div className="min-h-svh bg-muted/20" style={brandStyle(store?.brandColor ?? null)}>
+      <div className="min-h-svh bg-background" style={brandStyle(store?.brandColor ?? null)}>
+        <CounterMode />
         <NavBar
           session={session}
           storeName={store ? `${store.name} (${store.code})` : "Unknown store"}
@@ -30,8 +32,8 @@ export default async function DashboardLayout({
           nav={t.nav}
         />
         {/* Bottom padding keeps content clear of the mobile tab bar. */}
-        <main className="mx-auto max-w-5xl p-4 pb-24 sm:pb-4">{children}</main>
-        <MobileNav isAdmin={hasManagementAccess(session)} />
+        <main className="mx-auto max-w-5xl p-5 pb-24 sm:py-6">{children}</main>
+        <MobileNav isAdmin={hasManagementAccess(session)} userName={session.user.name} />
       </div>
     </I18nProvider>
   );

@@ -12,6 +12,7 @@ import {
 import { carrierLabel } from "@/lib/carriers";
 import { formatDuration } from "@/lib/duration";
 import { getT } from "@/lib/i18n/server";
+import { ShelfChip } from "@/components/shelf/ShelfBlock";
 import { PackageStatusBadge } from "./PackageStatusBadge";
 
 /** How long a still-waiting parcel has been on the shelf; null once handled. */
@@ -51,11 +52,7 @@ export async function PackageTable({ packages }: { packages: Package[] }) {
                 {carrierLabel(pkg.carrier, t)}
                 {pkg.customerName ? ` · ${pkg.customerName}` : ""}
               </span>
-              {pkg.shelfLocation && (
-                <span className="rounded bg-muted px-1.5 py-0.5 font-semibold">
-                  {pkg.shelfLocation}
-                </span>
-              )}
+              {pkg.shelfLocation && <ShelfChip code={pkg.shelfLocation} size="desktop" />}
             </div>
             <p className="text-xs text-muted-foreground">
               {pkg.direction === "INBOUND" ? t.packages.inbound : t.packages.outbound} ·{" "}
@@ -104,7 +101,9 @@ export async function PackageTable({ packages }: { packages: Package[] }) {
                 <TableCell>
                   <PackageStatusBadge status={pkg.status} />
                 </TableCell>
-                <TableCell className="font-semibold">{pkg.shelfLocation ?? "—"}</TableCell>
+                <TableCell>
+                  <ShelfChip code={pkg.shelfLocation} size="desktop" />
+                </TableCell>
                 <TableCell className="text-muted-foreground">{waitingFor(pkg) ?? "—"}</TableCell>
                 <TableCell>{pkg.customerName ?? "—"}</TableCell>
                 <TableCell className="text-muted-foreground">
