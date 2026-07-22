@@ -286,7 +286,12 @@ export const de: Messages = {
       "Dieser Beleg bestätigt die Annahme des Pakets an der oben genannten Annahmestelle. Sendungsverfolgung und Zustellung unterliegen den Bedingungen des Zustellers.",
   },
   expected: {
-    title: "Erwartete Pakete",
+    title: "Heutige Lieferung",
+    meta: "{announced} angekündigt · {received} schon da",
+    stillOnTruck: "Noch im Wagen ({count})",
+    vanUsually: "der Wagen kommt meist ~{time}",
+    importHint:
+      "Zeilen oder eine CSV einfügen — Namen und Telefonnummern werden zugeordnet, sodass die SMS in dem Moment rausgeht, in dem das Paket gescannt wird.",
     announced: "Angekündigt, noch nicht angenommen ({count})",
     nothingOutstanding: "Nichts ausstehend — jedes angekündigte Paket wurde gescannt.",
     colTracking: "Sendungsnummer",

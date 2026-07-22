@@ -292,7 +292,12 @@ export const en = {
       "This receipt confirms the parcel was received at the pickup point above. Tracking and delivery remain subject to the carrier's terms.",
   },
   expected: {
-    title: "Expected parcels",
+    title: "Today's truck",
+    meta: "{announced} announced · {received} already in",
+    stillOnTruck: "Still on the truck ({count})",
+    vanUsually: "the van usually comes ~{time}",
+    importHint:
+      "Paste lines or a CSV — names and phones are matched so the SMS goes out the second each parcel is scanned in.",
     announced: "Announced, not yet received ({count})",
     nothingOutstanding: "Nothing outstanding — every announced parcel has been scanned in.",
     colTracking: "Tracking number",
