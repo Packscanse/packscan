@@ -463,3 +463,16 @@ async function notifyCustomer(pkg: Package, trigger: "AWAITING_PICKUP" | "PICKED
     message,
   });
 }
+
+/**
+ * Manual re-notify from the detail page ("the SMS never arrived"). Only for
+ * parcels still on the shelf; reuses the AWAITING_PICKUP message. No
+ * cooldown yet — the provider is log-only until carrier credentials land;
+ * add one before a real SMS provider goes live.
+ */
+export async function resendPickupNotification(pkg: Package): Promise<boolean> {
+  if (pkg.status !== "AWAITING_PICKUP") return false;
+  if (!pkg.customerPhone && !pkg.customerEmail) return false;
+  await notifyCustomer(pkg, "AWAITING_PICKUP");
+  return true;
+}

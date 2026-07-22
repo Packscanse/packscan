@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getRequiredSession } from "@/lib/session";
-import { advanceStatus, cancelPackage, markForReturn } from "@/lib/packages";
+import {
+  advanceStatus,
+  cancelPackage,
+  markForReturn,
+  resendPickupNotification,
+} from "@/lib/packages";
 import { lookupCarrierStatus, type CarrierStatusResult } from "@/lib/carrier-lookup";
 import { CancelReasonSchema, CourierRefSchema, HandoverInputSchema } from "@/lib/validation/scan";
 
@@ -19,6 +24,14 @@ async function loadScopedPackage(packageId: string) {
 }
 
 export type PackageActionResult = { ok: true } | { ok: false; error: string };
+
+/** "The SMS never arrived" — resend the pickup notification. */
+export async function resendNotificationAction(packageId: string): Promise<void> {
+  const { pkg } = await loadScopedPackage(packageId);
+  if (!pkg) return;
+  await resendPickupNotification(pkg);
+  revalidatePath(`/packages/${packageId}`);
+}
 
 /**
  * Non-pickup advance (handoff or return completion) — no verification
