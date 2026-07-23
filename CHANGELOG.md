@@ -2,6 +2,9 @@
 
 Vad som ändrades och varför — en rad per logisk ändring. (Hur:et finns i git-historiken.)
 
+## 2026-07-23
+- Appens utlämningsskanner känner nu igen ID-handlingar precis som webben: skannas ett körkort (AAMVA-format) eller pass/ID-kort (MRZ) tänds rätt ID-platta i stället för att koden hamnar som hämtkod — första skanningen är mottagarens ID, nästa ombudets. Innehållet sparas aldrig, bara typ.
+
 ## 2026-07-22
 - Appen har fått samma Shelf First-design som webben: mörkt disk-läge rakt igenom, hyllkoden som affisch på utlämning och paketdetalj, verifiering som stora tryckplattor (hämtkod, mottagarens ID och ombudets ID — appen kan nu registrera dubbla ID vid ombudshämtning), inskanning med hyllförslag att trycka på i stället för ett formulär, "Hyllan"-listan med hyllbrickor och röda skicka-tillbaka-rader, högljudda klart-skärmar som återgår själva, och inloggning med knappsats där sista PIN-siffran loggar in. Skanning av ett väntande paket i hämtläge hoppar direkt till utlämningen — servern skickar numera med hyllförslag, liggtid och kundens övriga paket i samma svar.
 - Inloggningen hälsar efter tid på dygnet och fungerar med en hand på delade butikstelefoner: sex PIN-prickar som fylls i butiksfärg, skärmknappsats med raderingsknapp, automatisk inloggning på sjätte siffran och skak + rensning vid fel PIN. Desktop behåller vanlig inmatning, lösenordsläget är oförändrat, och e-post + PIN är kvar som uppgifter (namnväljare kräver enhetsregistrering och får bli en egen funktion).

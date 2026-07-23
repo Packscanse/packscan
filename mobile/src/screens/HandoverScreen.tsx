@@ -70,6 +70,18 @@ export function HandoverScreen({
   const showCode = policy.code !== "none";
   const isProxy = collectorName.trim().length > 0;
 
+  // Mirrors the server's classifyHandoverScan: AAMVA PDF417 (driver's
+  // licenses) and ICAO MRZ (passports/ID cards) are recognized by payload
+  // shape; contents are never stored — only the fact + type.
+  function classifyIdDocument(payload: string): IdType | null {
+    if (payload.startsWith("@") || /\bANSI\s?\d{6}/.test(payload)) return "DRIVERS_LICENSE";
+    if (payload.includes("<<")) {
+      if (/^P[A-Z<]/.test(payload)) return "PASSPORT";
+      if (/^[IAC][A-Z<]/.test(payload)) return "NATIONAL_ID";
+    }
+    return null;
+  }
+
   function captureCode(raw: string) {
     const value = raw.trim();
     if (!value) return;
@@ -79,6 +91,21 @@ export function HandoverScreen({
       return;
     }
     setWarning(null);
+    // One scanner pipeline: an ID document flips the right tile — the first
+    // scan is the recipient's, the next the collector's — anything else is
+    // the presented pickup code.
+    const idDoc = classifyIdDocument(value);
+    if (idDoc) {
+      if (idChecked && isProxy) {
+        setCollectorIdChecked(true);
+        setCollectorIdType(idDoc);
+      } else {
+        setIdChecked(true);
+        setIdType(idDoc);
+      }
+      setCaptureCodeOpen(false);
+      return;
+    }
     setPresentedCode(value);
     setCaptureCodeOpen(false);
   }
