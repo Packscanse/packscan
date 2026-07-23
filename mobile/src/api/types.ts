@@ -58,6 +58,8 @@ export type HandoverInput = {
   idChecked: boolean;
   idType?: IdType;
   collectorName?: string;
+  collectorIdChecked?: boolean;
+  collectorIdType?: IdType;
   override?: boolean;
   overrideReason?: string;
 };
@@ -89,6 +91,8 @@ export type HandoverContext = {
   carrier: CarrierCode;
   customerName: string | null;
   shelfLocation: string | null;
+  /** ISO timestamp of the intake scan — "on the shelf N days". */
+  arrivedAt: string;
   policy: PickupPolicy;
 };
 
@@ -119,11 +123,23 @@ export type PreAdviceMatch = {
   customerEmail: string | null;
 };
 
+export type ShelfSuggestion = {
+  suggested: string | null;
+  reason: "customer" | "space" | null;
+  alternatives: string[];
+};
+
 export type ScanContext = {
   ok: true;
   trackingNumber: string;
   candidates: DetectionCandidate[];
   preAdvice: PreAdviceMatch | null;
+  /** A parcel already waiting on the shelf — pickup goes straight to verification. */
+  handover: HandoverContext | null;
+  /** The customer's other shelf parcels, for the one-walk visit. */
+  companions: HandoverContext[];
+  /** Where to put a new parcel (intake flows). */
+  shelf: ShelfSuggestion;
 };
 
 export type PackageSummary = {

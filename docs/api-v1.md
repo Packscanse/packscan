@@ -66,7 +66,7 @@ the web client gets (`ok`, `code`, `error`, …) — see below.
 | `POST /auth/login` | Credentials → bearer token + user + store branding |
 | `GET /me` | Validate a stored token; fresh user + store (incl. `logoData`, `pickupDeadlineDays`) |
 | `POST /scans` | Register a scan — the app's Scan-screen submit |
-| `GET /scan-context?tracking=…` | One round-trip after a label scan: carrier detection candidates + pre-advice match |
+| `GET /scan-context?tracking=…` | One round-trip after a label scan: carrier detection candidates, pre-advice match, `handover` (a waiting parcel ready for pickup, incl. `arrivedAt`), `companions` (the customer's other shelf parcels), and `shelf` (`{ suggested, reason, alternatives }` for intake) |
 | `GET /pre-advice?tracking=…` | Pre-advice match only |
 | `GET /packages?status=&direction=&q=&overdue=1&page=` | Store-scoped package list (50/page) |
 | `GET /packages/:id` | Full detail: parcel, scan history + verifications, notifications |

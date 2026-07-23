@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { api } from "../api/client";
 import type {
   CarrierStatusResult,
@@ -10,11 +10,23 @@ import type {
 } from "../api/types";
 import { CARRIER_LABELS } from "../carriers";
 import type { AppMessages } from "../i18n";
-import { Button, Card, Field, Row, StatusBadge, colors } from "../ui";
+import {
+  Button,
+  Card,
+  Field,
+  Row,
+  SectionLabel,
+  ShelfPoster,
+  StatusBadge,
+  colors,
+} from "../ui";
+
+type TimelineEntry = { at: string; title: string; meta: string[]; warn?: boolean };
 
 /**
- * Package detail with the status actions the state machine allows. Pickup
- * routes through the shared handover screen; the rest are one-tap actions.
+ * The parcel as a story: shelf poster, the actions the state machine
+ * allows, then a merged timeline of scans and notifications instead of an
+ * audit table.
  */
 export function PackageDetailScreen({
   t,
@@ -26,13 +38,14 @@ export function PackageDetailScreen({
   t: AppMessages;
   accent?: string;
   packageId: string;
-  onPickup: (handover: HandoverContext) => void;
+  onPickup: (handover: HandoverContext, companions: HandoverContext[]) => void;
   onBack: () => void;
 }) {
   const [pkg, setPkg] = useState<PackageDetail | null>(null);
   const [policy, setPolicy] = useState<PickupPolicy | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [lookup, setLookup] = useState<CarrierStatusResult | null>(null);
   const [looking, setLooking] = useState(false);
@@ -78,7 +91,7 @@ export function PackageDetailScreen({
 
   if (!pkg) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.bg, padding: 16 }}>
+      <View style={{ flex: 1, backgroundColor: colors.bg, padding: 20 }}>
         <Text style={{ color: colors.muted }}>{t.detail.working}</Text>
       </View>
     );
@@ -91,51 +104,82 @@ export function PackageDetailScreen({
   const canCancel = !["PICKED_UP", "HANDED_OFF", "RETURNED_TO_CARRIER", "CANCELLED"].includes(
     pkg.status
   );
+  const danger = pkg.status === "RETURN_PENDING" || pkg.status === "CANCELLED";
+
+  const timeline: TimelineEntry[] = [
+    ...pkg.scanEvents.map((event) => ({
+      at: event.scannedAt,
+      title: event.fromStatus
+        ? `${t.status[event.fromStatus]} → ${t.status[event.toStatus]}`
+        : t.status[event.toStatus],
+      meta: [
+        `${new Date(event.scannedAt).toLocaleString()} · ${event.user.name}`,
+        ...(event.verification
+          ? [
+              `${t.detail.verified}: ${[
+                event.verification.presentedCode && "QR",
+                event.verification.idChecked &&
+                  `ID${event.verification.idType ? ` (${t.idType[event.verification.idType]})` : ""}`,
+                event.verification.collectorName,
+              ]
+                .filter(Boolean)
+                .join(" · ")}`,
+            ]
+          : []),
+        ...(event.verification?.override
+          ? [`${t.detail.overrideFlag} — ${event.verification.overrideReason ?? ""}`]
+          : []),
+      ],
+      warn: Boolean(event.verification?.override),
+    })),
+    ...pkg.notifications.map((n) => ({
+      at: n.createdAt,
+      title: t.detail.smsTo(n.recipient),
+      meta: [`${new Date(n.createdAt).toLocaleString()} · ${n.status}`],
+    })),
+  ].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
 
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.bg }}
-      contentContainerStyle={{ padding: 16, gap: 14 }}
+      contentContainerStyle={{ padding: 20, gap: 14 }}
       keyboardShouldPersistTaps="handled"
     >
-      <Button title="←" variant="ghost" onPress={onBack} />
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <Text style={{ fontFamily: "Courier", fontSize: 18, fontWeight: "800", color: colors.text }}>
-          {pkg.trackingNumber}
-        </Text>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+        <Pressable onPress={onBack} hitSlop={8}>
+          <Text style={{ color: colors.muted, fontSize: 15 }}>‹ {t.detail.back}</Text>
+        </Pressable>
         <StatusBadge status={pkg.status} label={t.status[pkg.status]} />
       </View>
 
-      <Card>
-        <Row label={t.detail.carrier} value={carrierLabel} />
-        <Row label={t.detail.direction} value={inbound ? t.detail.inbound : t.detail.outbound} />
-        {pkg.customerName ? (
-          <Row label={inbound ? t.detail.customer : t.detail.sender} value={pkg.customerName} />
-        ) : null}
-        {pkg.customerPhone || pkg.customerEmail ? (
-          <Row
-            label={t.detail.contact}
-            value={[pkg.customerPhone, pkg.customerEmail].filter(Boolean).join(" · ")}
-          />
-        ) : null}
-        {pkg.shelfLocation ? <Row label={t.detail.shelf} value={pkg.shelfLocation} /> : null}
-        {pkg.notes ? <Row label={t.detail.notes} value={pkg.notes} /> : null}
-        <Row label={t.detail.registered} value={new Date(pkg.createdAt).toLocaleString()} />
-      </Card>
+      <ShelfPoster
+        code={pkg.shelfLocation}
+        eyebrow={t.handover.shelfEyebrow}
+        name={pkg.customerName}
+        meta={`${carrierLabel} · ${pkg.trackingNumber}`}
+        accent={accent}
+        danger={danger}
+        compact
+      />
 
       {pkg.status === "AWAITING_PICKUP" && (
         <Button
           title={t.detail.completePickup}
           accent={accent}
+          size="xl"
           onPress={() =>
-            onPickup({
-              packageId: pkg.id,
-              trackingNumber: pkg.trackingNumber,
-              carrier: pkg.carrier,
-              customerName: pkg.customerName,
-              shelfLocation: pkg.shelfLocation,
-              policy: policy ?? { code: "accepted", idCheck: "required", proxyAllowed: true },
-            })
+            onPickup(
+              {
+                packageId: pkg.id,
+                trackingNumber: pkg.trackingNumber,
+                carrier: pkg.carrier,
+                customerName: pkg.customerName,
+                shelfLocation: pkg.shelfLocation,
+                arrivedAt: pkg.createdAt,
+                policy: policy ?? { code: "accepted", idCheck: "required", proxyAllowed: true },
+              },
+              []
+            )
           }
         />
       )}
@@ -155,23 +199,53 @@ export function PackageDetailScreen({
           onPress={() => void action({ action: "mark-return" })}
         />
       )}
-      {canCancel && (
-        <Card>
-          <Field
-            label={t.detail.cancelReason}
-            value={cancelReason}
-            onChangeText={setCancelReason}
-          />
-          <Button
-            title={t.detail.cancelPackage}
-            variant="danger"
-            loading={busy}
-            disabled={cancelReason.trim().length < 3}
-            onPress={() => void action({ action: "cancel", reason: cancelReason.trim() })}
-          />
-        </Card>
-      )}
       {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
+
+      <Card>
+        <Row label={t.detail.direction} value={inbound ? t.detail.inbound : t.detail.outbound} />
+        {pkg.customerPhone || pkg.customerEmail ? (
+          <Row
+            label={t.detail.contact}
+            value={[pkg.customerPhone, pkg.customerEmail].filter(Boolean).join(" · ")}
+          />
+        ) : null}
+        {pkg.notes ? <Row label={t.detail.notes} value={pkg.notes} /> : null}
+      </Card>
+
+      <Card>
+        <SectionLabel>{t.detail.history}</SectionLabel>
+        {timeline.map((entry, i) => (
+          <View key={i} style={{ flexDirection: "row", gap: 10 }}>
+            <View style={{ alignItems: "center", width: 12 }}>
+              <View
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: 5,
+                  marginTop: 4,
+                  backgroundColor: entry.warn ? colors.warn : colors.ok,
+                }}
+              />
+              {i < timeline.length - 1 && (
+                <View style={{ flex: 1, width: 2, backgroundColor: colors.border, marginTop: 2 }} />
+              )}
+            </View>
+            <View style={{ flex: 1, gap: 1, paddingBottom: i < timeline.length - 1 ? 10 : 0 }}>
+              <Text style={{ color: colors.text, fontSize: 14, fontWeight: "600" }}>
+                {entry.title}
+              </Text>
+              {entry.meta.map((line, j) => (
+                <Text
+                  key={j}
+                  style={{ color: entry.warn && j > 0 ? colors.warn : colors.muted, fontSize: 12 }}
+                >
+                  {line}
+                </Text>
+              ))}
+            </View>
+          </View>
+        ))}
+      </Card>
 
       <Card>
         <Button
@@ -200,39 +274,32 @@ export function PackageDetailScreen({
           ))}
       </Card>
 
-      <Card>
-        <Text style={{ fontWeight: "700", color: colors.text }}>{t.detail.history}</Text>
-        {pkg.scanEvents.map((event) => (
-          <View key={event.id} style={{ gap: 2 }}>
-            <Text style={{ color: colors.text }}>
-              {event.fromStatus
-                ? `${t.status[event.fromStatus]} → ${t.status[event.toStatus]}`
-                : t.status[event.toStatus]}
-            </Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {new Date(event.scannedAt).toLocaleString()} · {event.user.name}
-            </Text>
-            {event.verification && (
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {t.detail.verified}:{" "}
-                {[
-                  event.verification.presentedCode && "QR",
-                  event.verification.idChecked &&
-                    `ID${event.verification.idType ? ` (${t.idType[event.verification.idType]})` : ""}`,
-                  event.verification.collectorName,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </Text>
-            )}
-            {event.verification?.override && (
-              <Text style={{ color: colors.warn, fontWeight: "700", fontSize: 12 }}>
-                {t.detail.overrideFlag} — {event.verification.overrideReason}
-              </Text>
-            )}
-          </View>
-        ))}
-      </Card>
+      {canCancel && (
+        <View style={{ gap: 10 }}>
+          {cancelOpen ? (
+            <Card tone="danger">
+              <Field
+                label={t.detail.cancelReason}
+                value={cancelReason}
+                onChangeText={setCancelReason}
+              />
+              <Button
+                title={t.detail.cancelPackage}
+                variant="danger"
+                loading={busy}
+                disabled={cancelReason.trim().length < 3}
+                onPress={() => void action({ action: "cancel", reason: cancelReason.trim() })}
+              />
+            </Card>
+          ) : (
+            <Button
+              title={t.detail.cancelPackage}
+              variant="ghost"
+              onPress={() => setCancelOpen(true)}
+            />
+          )}
+        </View>
+      )}
     </ScrollView>
   );
 }
