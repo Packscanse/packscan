@@ -21,7 +21,7 @@ export function SettingsScreen({ t }: { t: AppMessages }) {
       style={{ flex: 1, backgroundColor: colors.bg }}
       contentContainerStyle={{ padding: 16, gap: 14 }}
     >
-      <Text style={{ fontSize: 20, fontWeight: "800", color: colors.text }}>
+      <Text style={{ fontSize: 28, fontWeight: "800", color: colors.text, letterSpacing: -0.5 }}>
         {t.settings.title}
       </Text>
       <Card>

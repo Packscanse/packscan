@@ -1,11 +1,12 @@
 import React, { useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { api, NetworkError } from "./src/api/client";
 import type { HandoverContext, HandoverInput, ScanInput, ScanResult } from "./src/api/types";
 import { AuthProvider, useAuth } from "./src/auth";
 import { DEFAULT_LOCALE, getMessages } from "./src/i18n";
-import { Button, Card, colors } from "./src/ui";
+import { DoneScreen, colors, onDarkAccent } from "./src/ui";
 import { HandoverScreen } from "./src/screens/HandoverScreen";
 import { LoginScreen } from "./src/screens/LoginScreen";
 import { PackageDetailScreen } from "./src/screens/PackageDetailScreen";
@@ -15,14 +16,20 @@ import { SettingsScreen } from "./src/screens/SettingsScreen";
 
 type Tab = "scan" | "packages" | "settings";
 
+const TAB_ICONS: Record<Tab, React.ComponentProps<typeof MaterialCommunityIcons>["name"]> = {
+  scan: "line-scan",
+  packages: "view-agenda",
+  settings: "account",
+};
+
 /**
  * Verification pushed over whatever triggered it: a scan that turned out to
  * be a pickup (resubmit the scan with verification attached) or the pickup
  * button on a package (dedicated pickup endpoint).
  */
 type HandoverJob =
-  | { origin: "scan"; input: ScanInput; handover: HandoverContext }
-  | { origin: "detail"; handover: HandoverContext };
+  | { origin: "scan"; input: ScanInput; handover: HandoverContext; companions: HandoverContext[] }
+  | { origin: "detail"; handover: HandoverContext; companions: HandoverContext[] };
 
 function Root() {
   const { ready, user, store } = useAuth();
@@ -34,13 +41,13 @@ function Root() {
   const [job, setJob] = useState<HandoverJob | null>(null);
   const [jobBusy, setJobBusy] = useState(false);
   const [jobError, setJobError] = useState<string | null>(null);
-  const [done, setDone] = useState<{ trackingNumber: string; status: string } | null>(null);
+  const [done, setDone] = useState<{ title: string; meta: string[] } | null>(null);
 
   if (!ready) return <View style={{ flex: 1, backgroundColor: colors.bg }} />;
   if (!user) {
     return (
       <>
-        <StatusBar style="dark" />
+        <StatusBar style="light" />
         <LoginScreen t={t} />
       </>
     );
@@ -62,11 +69,17 @@ function Root() {
               | { ok: false; error: { code: string; message: string } }
             >(`/packages/${job.handover.packageId}/pickup`, { body: verification });
       if (result.ok) {
-        const status =
-          "status" in result && result.status in t.status
-            ? t.status[result.status as keyof typeof t.status]
-            : t.status.PICKED_UP;
-        setDone({ trackingNumber: job.handover.trackingNumber, status });
+        const shelfLine = job.handover.shelfLocation
+          ? t.done.shelfFreed(job.handover.shelfLocation)
+          : t.done.carrierNoted;
+        const alsoLine =
+          job.companions.length > 0
+            ? [t.done.alsoOnShelf(job.companions.map((c) => c.shelfLocation ?? "—").join(", "))]
+            : [];
+        setDone({
+          title: t.done.handedOver,
+          meta: [job.handover.trackingNumber, shelfLine, ...alsoLine],
+        });
         setJob(null);
       } else {
         setJobError(
@@ -87,21 +100,17 @@ function Root() {
   let body: React.ReactNode;
   if (done) {
     body = (
-      <View style={{ flex: 1, backgroundColor: colors.bg, padding: 16, justifyContent: "center" }}>
-        <Card tone="ok">
-          <Text style={{ fontSize: 20, fontWeight: "800", color: colors.ok }}>✓ {done.status}</Text>
-          <Text style={{ fontFamily: "Courier", color: colors.text }}>{done.trackingNumber}</Text>
-          <Button
-            title={t.scan.scanNext}
-            accent={accent}
-            onPress={() => {
-              setDone(null);
-              setTab("scan");
-              setDetailId(null);
-            }}
-          />
-        </Card>
-      </View>
+      <DoneScreen
+        accent={accent}
+        title={done.title}
+        meta={done.meta}
+        nextLabel={t.done.nextCustomer}
+        onNext={() => {
+          setDone(null);
+          setTab("scan");
+          setDetailId(null);
+        }}
+      />
     );
   } else if (job) {
     body = (
@@ -109,6 +118,7 @@ function Root() {
         t={t}
         accent={accent}
         handover={job.handover}
+        companions={job.companions}
         canOverride={canOverride}
         busy={jobBusy}
         error={jobError}
@@ -126,7 +136,7 @@ function Root() {
         accent={accent}
         packageId={detailId}
         onBack={() => setDetailId(null)}
-        onPickup={(handover) => setJob({ origin: "detail", handover })}
+        onPickup={(handover, companions) => setJob({ origin: "detail", handover, companions })}
       />
     );
   } else if (tab === "scan") {
@@ -135,7 +145,9 @@ function Root() {
         t={t}
         accent={accent}
         userId={user.id}
-        onHandover={(input, handover) => setJob({ origin: "scan", input, handover })}
+        onHandover={(input, handover, companions) =>
+          setJob({ origin: "scan", input, handover, companions })
+        }
         onViewPackage={(id) => setDetailId(id)}
       />
     );
@@ -145,12 +157,15 @@ function Root() {
     body = <SettingsScreen t={t} />;
   }
 
+  const firstName = user.name.split(" ")[0];
+
   return (
     <View style={styles.root}>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
       <View style={styles.header}>
-        <Text style={[styles.headerTitle, accent ? { color: accent } : null]}>
-          {store?.name ?? t.appName}
+        <Text style={styles.wordmark}>{t.appName}</Text>
+        <Text style={styles.headerMeta} numberOfLines={1}>
+          {store ? `${store.name} · ${firstName}` : firstName}
         </Text>
       </View>
       <View style={{ flex: 1 }}>{body}</View>
@@ -158,6 +173,7 @@ function Root() {
         <View style={styles.tabBar}>
           {(["scan", "packages", "settings"] as Tab[]).map((name) => {
             const active = tab === name && !detailId;
+            const tint = active ? onDarkAccent(accent ?? colors.text) : colors.muted;
             return (
               <Pressable
                 key={name}
@@ -167,14 +183,11 @@ function Root() {
                   setTab(name);
                 }}
               >
+                <MaterialCommunityIcons name={TAB_ICONS[name]} size={22} color={tint} />
                 <Text
-                  style={{
-                    fontWeight: active ? "800" : "500",
-                    color: active ? (accent ?? colors.text) : colors.muted,
-                    fontSize: 15,
-                  }}
+                  style={{ fontWeight: active ? "700" : "500", color: tint, fontSize: 12 }}
                 >
-                  {t.tabs[name]}
+                  {name === "settings" ? firstName : t.tabs[name]}
                 </Text>
               </Pressable>
             );
@@ -198,19 +211,22 @@ const styles = StyleSheet.create({
   header: {
     paddingTop: Platform.OS === "ios" ? 58 : 34,
     paddingBottom: 10,
-    paddingHorizontal: 16,
-    backgroundColor: colors.card,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    paddingHorizontal: 20,
+    backgroundColor: colors.bg,
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    gap: 10,
   },
-  headerTitle: { fontSize: 17, fontWeight: "800", color: colors.text },
+  wordmark: { fontSize: 17, fontWeight: "800", color: colors.text, letterSpacing: -0.3 },
+  headerMeta: { fontSize: 12, color: colors.muted, flexShrink: 1 },
   tabBar: {
     flexDirection: "row",
-    backgroundColor: colors.card,
+    backgroundColor: colors.sheet,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     paddingBottom: Platform.OS === "ios" ? 26 : 12,
     paddingTop: 8,
   },
-  tabButton: { flex: 1, alignItems: "center", paddingVertical: 8 },
+  tabButton: { flex: 1, alignItems: "center", paddingVertical: 6, gap: 3 },
 });

@@ -12,15 +12,17 @@ export function Scanner({
   onScan,
   permissionText,
   grantText,
+  height,
 }: {
   onScan: (value: string) => void;
   permissionText: string;
   grantText: string;
+  height?: number;
 }) {
   const [permission, requestPermission] = useCameraPermissions();
   const last = useRef<{ value: string; at: number }>({ value: "", at: 0 });
 
-  if (!permission) return <View style={styles.frame} />;
+  if (!permission) return <View style={[styles.frame, height ? { height } : null]} />;
   if (!permission.granted) {
     return (
       <Card>
@@ -31,7 +33,7 @@ export function Scanner({
   }
 
   return (
-    <View style={styles.frame}>
+    <View style={[styles.frame, height ? { height } : null]}>
       <CameraView
         style={StyleSheet.absoluteFill}
         facing="back"
@@ -68,7 +70,9 @@ export function Scanner({
 const styles = StyleSheet.create({
   frame: {
     height: 240,
-    borderRadius: 14,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: colors.border,
     overflow: "hidden",
     backgroundColor: "#000",
     justifyContent: "center",
@@ -76,10 +80,11 @@ const styles = StyleSheet.create({
   },
   reticle: {
     position: "absolute",
-    width: "72%",
-    height: 110,
+    width: "64%",
+    height: 130,
     borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.85)",
-    borderRadius: 10,
+    borderColor: "rgba(255,255,255,0.75)",
+    borderStyle: "dashed",
+    borderRadius: 20,
   },
 });
