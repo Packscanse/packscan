@@ -15,6 +15,13 @@ export async function setToken(token: string | null): Promise<void> {
 /** Thrown when the request never reached the server — the offline case. */
 export class NetworkError extends Error {}
 
+/**
+ * Hard cap on every request. Without it, iOS waits up to 60 s on an
+ * unreachable host (Mac asleep, wrong Wi-Fi) with the UI stuck on "busy" —
+ * the scan flow must fall over to the offline path long before that.
+ */
+export const API_TIMEOUT_MS = 8_000;
+
 /** Thrown on 401: token missing/expired/revoked → back to login. */
 export class UnauthenticatedError extends Error {}
 
@@ -38,27 +45,45 @@ export async function api<T>(
   const base = await getServerUrl();
   const token = init.token !== undefined ? init.token : await getToken();
 
-  let res: Response;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
   try {
-    res = await fetch(`${base}/api/v1${path}`, {
-      method: init.method ?? (init.body !== undefined ? "POST" : "GET"),
-      headers: {
-        "content-type": "application/json",
-        ...(token ? { authorization: `Bearer ${token}` } : {}),
-      },
-      body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
-    });
-  } catch {
-    throw new NetworkError("Could not reach the server.");
-  }
-
-  if (res.status === 401) {
-    // The login call itself answers 401 on wrong credentials — that is a
-    // normal domain answer, not a dead session.
-    if (!path.startsWith("/auth/")) {
-      unauthenticatedHandler?.();
-      throw new UnauthenticatedError("Signed out.");
+    let res: Response;
+    try {
+      res = await fetch(`${base}/api/v1${path}`, {
+        method: init.method ?? (init.body !== undefined ? "POST" : "GET"),
+        headers: {
+          "content-type": "application/json",
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+        },
+        body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
+        signal: controller.signal,
+      });
+    } catch {
+      // Connect failure and the 8 s abort land here alike: the offline path.
+      throw new NetworkError("Could not reach the server.");
     }
+
+    if (res.status === 401) {
+      // The login call itself answers 401 on wrong credentials — that is a
+      // normal domain answer, not a dead session.
+      if (!path.startsWith("/auth/")) {
+        unauthenticatedHandler?.();
+        throw new UnauthenticatedError("Signed out.");
+      }
+    }
+    try {
+      return (await res.json()) as T;
+    } catch (e) {
+      // A body cut off by the timeout is still the offline case; a body that
+      // is not JSON (e.g. an HTML 500 page) is not — let it surface so the
+      // screen can show a visible error instead of queueing forever.
+      if (e instanceof Error && e.name === "AbortError") {
+        throw new NetworkError("Response was interrupted.");
+      }
+      throw e;
+    }
+  } finally {
+    clearTimeout(timer);
   }
-  return (await res.json()) as T;
 }

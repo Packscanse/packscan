@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { api, NetworkError } from "../api/client";
+import { api, NetworkError, UnauthenticatedError } from "../api/client";
 import type {
   CarrierCode,
   HandoverContext,
@@ -72,6 +72,31 @@ export function ScanScreen({
   const [queued, setQueued] = useState(0);
   const [justQueued, setJustQueued] = useState(false);
   const [attention, setAttention] = useState<SyncAttention[]>([]);
+  // The lookup that failed for a reason that is NOT "offline" — shown as a
+  // card (viewfinder state) or an inline line (pending form), never silent.
+  const [scanError, setScanError] = useState<{
+    trackingNumber: string;
+    inputMethod: ScanInput["inputMethod"];
+    message: string;
+  } | null>(null);
+  // Which number is being looked up right now — feeds the busy indicator.
+  const [lookupTracking, setLookupTracking] = useState<string | null>(null);
+  // One green blink over the viewfinder per accepted camera read: the
+  // "I heard you" that must not wait for the server.
+  const [flash, setFlash] = useState(false);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (flashTimer.current) clearTimeout(flashTimer.current);
+    },
+    []
+  );
+
+  function blink() {
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    setFlash(true);
+    flashTimer.current = setTimeout(() => setFlash(false), 250);
+  }
 
   const refreshQueue = useCallback(async () => {
     setQueued((await readQueue()).length);
@@ -98,12 +123,15 @@ export function ScanScreen({
     setPending(null);
     setCustomShelf(false);
     setShowContact(false);
+    setScanError(null);
   }
 
   async function startScan(raw: string, inputMethod: ScanInput["inputMethod"]) {
     const trackingNumber = raw.trim();
     if (trackingNumber.length < 6 || pending || busy) return;
     setResult(null);
+    setScanError(null);
+    setLookupTracking(trackingNumber);
     setBusy(true);
     try {
       const ctx = await api<ScanContext>(
@@ -153,8 +181,17 @@ export function ScanScreen({
           shelf: null,
           notes: "",
         });
+      } else if (!(e instanceof UnauthenticatedError)) {
+        // Reachable-but-broken backend (bad status body, non-JSON 500, …):
+        // never swallow it — show a card with the number and a retry.
+        setScanError({
+          trackingNumber,
+          inputMethod,
+          message: t.scan.lookupFailed(trackingNumber),
+        });
       }
     } finally {
+      setLookupTracking(null);
       setBusy(false);
     }
   }
@@ -176,6 +213,7 @@ export function ScanScreen({
   async function confirm() {
     if (!pending) return;
     const input = buildInput(pending);
+    setScanError(null);
     setBusy(true);
     try {
       const res = await api<ScanResult>("/scans", { body: input });
@@ -202,6 +240,13 @@ export function ScanScreen({
         setQueued(await enqueueScan(input, userId));
         setJustQueued(true);
         resetEntry();
+      } else if (!(e instanceof UnauthenticatedError)) {
+        // Keep the form so nothing is lost; say why the save failed.
+        setScanError({
+          trackingNumber: input.trackingNumber,
+          inputMethod: input.inputMethod,
+          message: t.scan.saveFailed(input.trackingNumber),
+        });
       }
     } finally {
       setBusy(false);
@@ -253,22 +298,77 @@ export function ScanScreen({
 
       {!pending && !result && (
         <>
-          <Scanner
-            height={300}
-            onScan={(v) => void startScan(v, "CAMERA")}
-            permissionText={t.scan.cameraPermission}
-            grantText={t.scan.grantCamera}
-          />
-          <View style={{ gap: 2 }}>
-            <Text
-              style={{ color: colors.text, textAlign: "center", fontSize: 19, fontWeight: "600" }}
-            >
-              {t.scan.pointPrompt}
-            </Text>
-            <Text style={{ color: colors.muted, textAlign: "center", fontSize: 13 }}>
-              {t.flow[flow]}
-            </Text>
+          {scanError && (
+            <Card tone="danger">
+              <Text style={{ color: colors.danger, fontWeight: "700" }}>{scanError.message}</Text>
+              <Text style={{ color: colors.text, fontFamily: "Courier", fontSize: 13 }}>
+                {scanError.trackingNumber}
+              </Text>
+              <Button
+                title={t.scan.tryAgain}
+                variant="secondary"
+                onPress={() => {
+                  const retry = scanError;
+                  setScanError(null);
+                  void startScan(retry.trackingNumber, retry.inputMethod);
+                }}
+              />
+              <Button title="OK" variant="ghost" onPress={() => setScanError(null)} />
+            </Card>
+          )}
+          <View>
+            <Scanner
+              height={300}
+              onScan={(v) => {
+                blink();
+                void startScan(v, "CAMERA");
+              }}
+              permissionText={t.scan.cameraPermission}
+              grantText={t.scan.grantCamera}
+            />
+            {flash && (
+              <View
+                pointerEvents="none"
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  borderRadius: 24,
+                  borderWidth: 3,
+                  borderColor: colors.ok,
+                  backgroundColor: "rgba(74, 222, 128, 0.16)",
+                }}
+              />
+            )}
           </View>
+          {busy && lookupTracking ? (
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "center",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <ActivityIndicator color={colors.muted} />
+              <Text style={{ color: colors.muted, textAlign: "center", fontSize: 14 }}>
+                {t.scan.lookingUp(lookupTracking)}
+              </Text>
+            </View>
+          ) : (
+            <View style={{ gap: 2 }}>
+              <Text
+                style={{ color: colors.text, textAlign: "center", fontSize: 19, fontWeight: "600" }}
+              >
+                {t.scan.pointPrompt}
+              </Text>
+              <Text style={{ color: colors.muted, textAlign: "center", fontSize: 13 }}>
+                {t.flow[flow]}
+              </Text>
+            </View>
+          )}
           <View style={{ flexDirection: "row", gap: 8 }}>
             <View style={{ flex: 1 }}>
               <Field
@@ -500,6 +600,9 @@ export function ScanScreen({
             </View>
           )}
 
+          {scanError && (
+            <Text style={{ color: colors.danger, fontWeight: "600" }}>{scanError.message}</Text>
+          )}
           <Button
             title={
               busy
