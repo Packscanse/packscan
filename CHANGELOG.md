@@ -2,6 +2,9 @@
 
 Vad som ändrades och varför — en rad per logisk ändring. (Hur:et finns i git-historiken.)
 
+## 2026-07-24
+- Appens skanning kan inte längre se ut att "inte läsa": varje kameraläsning kvitteras direkt med en grön blink över sökaren, pågående uppslag visar en synlig "Slår upp…"-rad, serverfel som inte är nätfel ger ett felkort med spårningsnummer och "Försök igen" i stället för tystnad, och alla appens serveranrop har nu en 8-sekunders timeout så att en sovande dator leder till offlineläget (manuellt transportörsval + kö) i stället för en evig väntan.
+
 ## 2026-07-23
 - Appens utlämningsskanner känner nu igen ID-handlingar precis som webben: skannas ett körkort (AAMVA-format) eller pass/ID-kort (MRZ) tänds rätt ID-platta i stället för att koden hamnar som hämtkod — första skanningen är mottagarens ID, nästa ombudets. Innehållet sparas aldrig, bara typ.
 
